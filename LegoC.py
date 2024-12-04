@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import scrolledtext
 
+
 # Enum-like class for Token Types
 class TokenType:
     KEYWORD = 'KEYWORD'
@@ -10,7 +11,7 @@ class TokenType:
     STRING_LITERAL = 'STRING_LITERAL'
     OPERATOR = 'OPERATOR'
     PUNCTUATOR = 'PUNCTUATOR'
-    UNKNOWN = 'UNKNOWN'
+    ERROR = 'ERROR'
 
 
 # Token class to hold the token type and value
@@ -23,19 +24,19 @@ class Token:
 # LexicalAnalyzer class to tokenize the input source code
 class LexicalAnalyzer:
     def __init__(self, source_code):
-        self.input = source_code
+        self.source_code = source_code
         self.position = 0
+        self.length = len(source_code)
         self.keywords = {
-            "Build": TokenType.KEYWORD,
-            "Destroy": TokenType.KEYWORD,
-            "Pane": TokenType.KEYWORD,
-            "Link": TokenType.KEYWORD,
-            "Display": TokenType.KEYWORD,
-            "Rebrick": TokenType.KEYWORD
+            "Build", "Destroy", "Pane", "Link", "Display", "Rebrick", "Broke", "Change", "Con",
+            "Const", "Create", "Def", "Do", "Flip", "Ifsnap", "Piece", "Put", "Revoid", "Stable",
+            "Set", "Snap", "Snapif", "Subs", "While", "Wobble"
         }
+        self.single_operators = {'+', '-', '*', '/', '%', '=', '<', '>', '!', '~'}
+        self.punctuators = {';', ',', '(', ')', '{', '}'}
 
     def is_whitespace(self, c):
-        return c in (' ', '\t', '\n', '\r')
+        return c in ' \t\n\r'
 
     def is_alpha(self, c):
         return c.isalpha()
@@ -46,115 +47,66 @@ class LexicalAnalyzer:
     def is_alphanumeric(self, c):
         return c.isalnum()
 
-    def get_next_word(self):
-        start = self.position
-        while self.position < len(self.input) and self.is_alphanumeric(self.input[self.position]):
-            self.position += 1
-        return self.input[start:self.position]
-
-    def get_next_number(self):
-        start = self.position
-        has_decimal = False
-        while self.position < len(self.input) and (self.is_digit(self.input[self.position]) or self.input[self.position] == '.'):
-            if self.input[self.position] == '.':
-                if has_decimal:
-                    break
-                has_decimal = True
-            self.position += 1
-        return self.input[start:self.position]
-
     def tokenize(self):
         tokens = []
-        self.position = 0  # Reset position for each analysis
-        lexemes = []
+        errors = []
 
-        while self.position < len(self.input):
-            current_char = self.input[self.position]
+        while self.position < self.length:
+            current_char = self.source_code[self.position]
 
+            # Skip whitespaces
             if self.is_whitespace(current_char):
                 self.position += 1
                 continue
 
+            # Handle keywords and identifiers
             if self.is_alpha(current_char):
-                word = self.get_next_word()
+                start = self.position
+                while (self.position < self.length and
+                       (self.is_alphanumeric(self.source_code[self.position]) or self.source_code[self.position] == '_')):
+                    self.position += 1
+                word = self.source_code[start:self.position]
                 if word in self.keywords:
                     tokens.append(Token(TokenType.KEYWORD, word))
+                elif len(word) > 20 or not word[0].islower():
+                    errors.append(f"Invalid identifier '{word}' at position {start}.")
+                    tokens.append(Token(TokenType.ERROR, word))
                 else:
                     tokens.append(Token(TokenType.IDENTIFIER, word))
-                lexemes.append(word)
+                continue
 
-            elif self.is_digit(current_char):
-                number = self.get_next_number()
-                if '.' in number:
-                    tokens.append(Token(TokenType.FLOAT_LITERAL, number))
-                else:
-                    tokens.append(Token(TokenType.INTEGER_LITERAL, number))
-                lexemes.append(number)
-
-            elif current_char == '"':  # Start of a string literal
+            # Handle numeric literals
+            if self.is_digit(current_char):
                 start = self.position
-                self.position += 1
-                while self.position < len(self.input) and self.input[self.position] != '"':
+                while self.position < self.length and self.is_digit(self.source_code[self.position]):
                     self.position += 1
-                if self.position >= len(self.input):  # Missing closing quote
-                    tokens.append(Token(TokenType.UNKNOWN, self.input[start:]))
-                    lexemes.append(self.input[start:])
+                tokens.append(Token(TokenType.INTEGER_LITERAL, self.source_code[start:self.position]))
+                continue
+
+            # Handle operators
+            if current_char in self.single_operators:
+                next_char = self.source_code[self.position + 1] if self.position + 1 < self.length else ''
+                if next_char == current_char:
+                    errors.append(f"Invalid operator sequence '{current_char}{next_char}' at position {self.position}.")
+                    tokens.append(Token(TokenType.ERROR, current_char + next_char))
+                    self.position += 2
                 else:
-                    self.position += 1  # Include the closing quote
-                    tokens.append(Token(TokenType.STRING_LITERAL, self.input[start:self.position]))
-                    lexemes.append(self.input[start:self.position])
+                    tokens.append(Token(TokenType.OPERATOR, current_char))
+                    self.position += 1
+                continue
 
-            elif current_char in ('+', '~', '*', '/'):
-                tokens.append(Token(TokenType.OPERATOR, current_char))
-                lexemes.append(current_char)
-                self.position += 1
-
-            elif current_char in ('(', ')', '{', '}', ';'):
+            # Handle punctuators
+            if current_char in self.punctuators:
                 tokens.append(Token(TokenType.PUNCTUATOR, current_char))
-                lexemes.append(current_char)
                 self.position += 1
+                continue
 
-            else:
-                tokens.append(Token(TokenType.UNKNOWN, current_char))
-                lexemes.append(current_char)
-                self.position += 1
+            # Handle unknown characters
+            errors.append(f"Unrecognized character '{current_char}' at position {self.position}.")
+            tokens.append(Token(TokenType.ERROR, current_char))
+            self.position += 1
 
-        return tokens, lexemes
-
-
-# Error detection functions
-def validate_operator_placement(tokens):
-    errors = []
-    for i, token in enumerate(tokens):
-        if token.type == TokenType.OPERATOR:
-            if i == 0 or i == len(tokens) - 1 or \
-               (tokens[i - 1].type not in {TokenType.IDENTIFIER, TokenType.INTEGER_LITERAL, TokenType.FLOAT_LITERAL} or
-                tokens[i + 1].type not in {TokenType.IDENTIFIER, TokenType.INTEGER_LITERAL, TokenType.FLOAT_LITERAL}):
-                errors.append(f"Invalid operator placement near '{token.value}' at position {i}.")
-    return errors
-
-def validate_return_value(tokens):
-    errors = []
-    for i, token in enumerate(tokens):
-        if token.type == TokenType.KEYWORD and token.value == "Rebrick":
-            if i == len(tokens) - 1 or tokens[i + 1].type not in {TokenType.INTEGER_LITERAL, TokenType.IDENTIFIER}:
-                errors.append(f"Invalid return value after 'Rebrick' at position {i}.")
-    return errors
-
-def validate_closing_quotes(tokens):
-    errors = []
-    for token in tokens:
-        if token.type == TokenType.UNKNOWN and '"' in token.value:
-            errors.append(f"Missing closing quote in string: {token.value}")
-    return errors
-
-def validate_syntax(tokens):
-    errors = []
-    if not tokens or tokens[0].value != 'Build':
-        errors.append("Syntax Error: The program must start with 'Build'.")
-    if not tokens or tokens[-1].value != 'Destroy':
-        errors.append("Syntax Error: The program must end with 'Destroy'.")
-    return errors
+        return tokens, errors
 
 
 # GUI components and functions
@@ -188,30 +140,21 @@ class TextWithLineNumbers(tk.Frame):
 def update_analysis(event=None):
     source_code = text_with_line_numbers.text.get("1.0", "end-1c")
     lexer = LexicalAnalyzer(source_code)
-    tokens, lexemes = lexer.tokenize()
+    tokens, errors = lexer.tokenize()
 
     lexeme_text.delete("1.0", "end")
     token_text.delete("1.0", "end")
     error_text.delete("1.0", "end")
-    program_text.delete("1.0", "end")
 
     for token in tokens:
+        lexeme_text.insert(tk.END, f"{token.value}\n")
         token_text.insert(tk.END, f"{token.type}\n")
-    for lexeme in lexemes:
-        lexeme_text.insert(tk.END, f"{lexeme}\n")
-
-    errors = []
-    errors.extend(validate_operator_placement(tokens))
-    errors.extend(validate_return_value(tokens))
-    errors.extend(validate_closing_quotes(tokens))
-    errors.extend(validate_syntax(tokens))
 
     if errors:
         for error in errors:
             error_text.insert(tk.END, error + "\n")
     else:
         error_text.insert(tk.END, "No errors detected.\n")
-        program_text.insert(tk.END, "Program output is ready for display.\n")
 
 
 root = tk.Tk()
@@ -246,12 +189,6 @@ error_label.grid(row=0, column=2, padx=5, pady=5, sticky="w")
 
 error_text = tk.Text(output_frame, width=35, height=10)
 error_text.grid(row=1, column=2, padx=5, pady=5)
-
-program_label = tk.Label(output_frame, text="Program:")
-program_label.grid(row=0, column=3, padx=5, pady=5, sticky="w")
-
-program_text = tk.Text(output_frame, width=35, height=10)
-program_text.grid(row=1, column=3, padx=5, pady=5)
 
 text_with_line_numbers.text.bind("<KeyRelease>", update_analysis)
 
