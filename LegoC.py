@@ -6,13 +6,12 @@ import re
 class TokenType:
     KEYWORD = 'KEYWORD'
     IDENTIFIER = 'IDENTIFIER'
-    INTEGER_LITERAL = 'INTEGER_LITERAL'
-    FLOAT_LITERAL = 'FLOAT_LITERAL'
-    STRING_LITERAL = 'STRING_LITERAL'
+    INTEGER_LITERAL = 'Linklit'
+    FLOAT_LITERAL = 'Bubblelit'
+    STRING_LITERAL = 'Piecelit'
     OPERATOR = 'OPERATOR'
     PUNCTUATOR = 'PUNCTUATOR'
     UNKNOWN = 'UNKNOWN'
-
 
 class Token:
     def __init__(self, token_type, value):
@@ -25,108 +24,166 @@ class LexicalAnalyzer:
         self.input = source_code
         self.position = 0
         self.keywords = {
-            "Build": TokenType.KEYWORD,
-            "Destroy": TokenType.KEYWORD,
-            "Pane": TokenType.KEYWORD,
-            "Link": TokenType.KEYWORD,
-            "Display": TokenType.KEYWORD,
-            "Rebrick": TokenType.KEYWORD
+            "Base": "delim7",
+            "Bubble": "delim3",
+            "Build": "delim1",
+            "Broke": "delim8",
+            "Change": "delim5",
+            "Con": "delim8",
+            "Const": "delim2",
+            "Create": "delim5",
+            "Def": "delim9",
+            "Destroy": "delim2",
+            "Display": "delim4",
+            "Do": "delim6",
+            "Flip": "delim8",
+            "Ifsnap": "delim6",
+            "Link": "delim3",
+            "Pane": "delim5",
+            "Piece": "delim3",
+            "Put": "delim5",
+            "Rebrick": "delim10",
+            "Revoid": "delim8",
+            "Stable": "delim8",
+            "Set": "delim6",
+            "Snap": "delim6",
+            "Snapif": "delim5",
+            "Subs": "delim3",
+            "While": "delim5",
+            "Wobble": "delim8",
         }
 
+        self.symbols = {
+            "=": "delim11",
+            "==": "delim13",
+            "+": "delim12",
+            "+=": "delim12",
+            "-": "delim12",
+            "-=": "delim12",
+            "*": "delim12",
+            "*=": "delim12",
+            "/": "delim12",
+            "/=": "delim12",
+            "%": "delim12",
+            "%=": "delim12",
+            "!!": "delim12",
+            "!=": "delim11",
+            "<": "delim11",
+            "<=": "delim11",
+            ">": "delim11",
+            ">=": "delim11",
+            "&&": "delim12",
+            "||": "delim12",
+            "{": "delim14",
+            "}": "delim14",
+            "(": "delim14",
+            ")": "delim14",
+            "[": "delim14",
+            "]": "delim14",
+            ";": "delim3",
+        }
+
+        self.delimiters = {
+            "delim1": [" ", "\n", "\t"],
+            "delim2": [None],
+            "delim3": [" "],
+            "delim4": [" ", '"'],
+            "delim5": [" ", "("],
+            "delim6": [" ", "{"],
+            "delim7": [" ", ":", "\n", "+"],
+            "delim8": [";"],
+            "delim9": [":"],
+            "delim10": [";", " "],
+            "delim11": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
+            "delim12": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"), "("],
+            "delim13": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
+            "delim14": [" ", "\n", "{", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
+            "identifier_delim": [" ", "=", ";", ",", "{", "}", "(", ")"],
+            "piece_delim": ["}", ";", ")", "~", "=", " "],
+        }
+
+
     def is_whitespace(self, c):
-        return c == ' '
+        return c in self.delimiters["delim1"]
 
-    def is_alpha(self, c):
-        return c.isalpha()
+    def is_identifier_boundary(self, c):
+        return c in self.delimiters["identifier_delim"]
 
-    def is_digit(self, c):
-        return c.isdigit()
-
-    def is_alphanumeric(self, c):
-        return c.isalnum()
+    def is_piece_boundary(self, c):
+        return c in self.delimiters["piece_delim"]
 
     def get_next_word(self):
         start = self.position
-        while self.position < len(self.input) and self.is_alphanumeric(self.input[self.position]):
-            self.position += 1
-        return self.input[start:self.position]
-
-    def get_next_number(self):
-        start = self.position
-        has_decimal = False
-        while self.position < len(self.input) and (self.is_digit(self.input[self.position]) or self.input[self.position] == '.'):
-            if self.input[self.position] == '.':
-                if has_decimal:
-                    break
-                has_decimal = True
+        while self.position < len(self.input) and self.input[self.position].isalnum():
             self.position += 1
         return self.input[start:self.position]
 
     def tokenize(self):
         tokens = []
-        self.position = 0  # Reset position for each analysis
         lexemes = []
+        self.position = 0  # Reset position for each analysis
 
         while self.position < len(self.input):
             current_char = self.input[self.position]
 
             if self.is_whitespace(current_char):
-                self.position += 1
+                tokens.append(Token(TokenType.UNKNOWN, "space"))
                 lexemes.append("space")
-                tokens.append(Token(TokenType.OPERATOR, "space"))  # Add "space" to tokens
-                continue
-
-            elif current_char == '\t':  # Handle tabs
                 self.position += 1
-                lexemes.append("space")  # Represent tab as "space"
-                tokens.append(Token(TokenType.OPERATOR, "space"))  # Add "space" to tokens
                 continue
 
-            elif current_char == '\n':  # Handle newlines (Enter key)
-                self.position += 1
-                lexemes.append("space")  # Represent newline as "space"
-                tokens.append(Token(TokenType.OPERATOR, "space"))  # Add "space" to tokens
-                continue
-
-            if self.is_alpha(current_char):
-                word = self.get_next_word()
-                if word in self.keywords:
-                    tokens.append(Token(word, word))
-                else:
-                    tokens.append(Token(TokenType.IDENTIFIER, word))
+            # Check for keywords
+            word = self.get_next_word()
+            if word in self.keywords:
+                tokens.append(Token(TokenType.KEYWORD, word))
                 lexemes.append(word)
 
-            elif self.is_digit(current_char):
-                number = self.get_next_number()
-                if '.' in number:
-                    tokens.append(Token(TokenType.FLOAT_LITERAL, number))
-                else:
-                    tokens.append(Token(TokenType.INTEGER_LITERAL, number))
-                lexemes.append(number)
+            # Check for symbols
+            elif word in self.symbols:
+                tokens.append(Token(TokenType.OPERATOR, word))
+                lexemes.append(word)
 
-            elif current_char == '"':  # Start of a string literal
+            # Check for identifiers
+            if current_char.isalpha():
+                start = self.position
+                while self.position < len(self.input) and not self.is_identifier_boundary(self.input[self.position]):
+                    self.position += 1
+                identifier = self.input[start:self.position]
+                tokens.append(Token(TokenType.IDENTIFIER, identifier))
+                lexemes.append(identifier)
+                continue
+
+            # Check for integers or floats
+            if current_char.isdigit() or (current_char == '.' and self.input[self.position + 1].isdigit()):
+                start = self.position
+                is_float = False
+                while self.position < len(self.input) and (self.input[self.position].isdigit() or self.input[self.position] == '.'):
+                    if self.input[self.position] == '.':
+                        is_float = True
+                    self.position += 1
+                literal = self.input[start:self.position]
+                token_type = TokenType.FLOAT_LITERAL if is_float else TokenType.INTEGER_LITERAL
+                tokens.append(Token(token_type, literal))
+                lexemes.append(literal)
+                continue
+
+            # Check for string literals (Piecelit)
+            if current_char == '"':  # Piecelit starts with a double quote
                 start = self.position
                 self.position += 1
-                while self.position < len(self.input) and self.input[self.position] != '"':
+                while self.position < len(self.input) and not self.is_piece_boundary(self.input[self.position]):
                     self.position += 1
-                if self.position >= len(self.input):  # Missing closing quote
+                if self.position >= len(self.input):  # Missing closing
                     tokens.append(Token(TokenType.UNKNOWN, self.input[start:]))
                     lexemes.append(self.input[start:])
                 else:
-                    self.position += 1  # Include the closing quote
-                    tokens.append(Token(TokenType.STRING_LITERAL, self.input[start:self.position]))
-                    lexemes.append(self.input[start:self.position])
+                    self.position += 1  # Include the boundary
+                    piecelit = self.input[start:self.position]
+                    tokens.append(Token(TokenType.STRING_LITERAL, piecelit))
+                    lexemes.append(piecelit)
+                continue
 
-            elif current_char in ('+', '~', '*', '/'):
-                tokens.append(Token(current_char, current_char))
-                lexemes.append(current_char)
-                self.position += 1
-
-            elif current_char in ('(', ')', '{', '}', ';'):
-                tokens.append(Token(current_char, current_char))
-                lexemes.append(current_char)
-                self.position += 1
-
+            # Unknown or other characters
             else:
                 tokens.append(Token(TokenType.UNKNOWN, current_char))
                 lexemes.append(current_char)
