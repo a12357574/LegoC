@@ -1,14 +1,13 @@
 import tkinter as tk
 from tkinter import scrolledtext
-import re
 
 # Enum-like class for Token Types
 class TokenType:
     KEYWORD = 'KEYWORD'
     IDENTIFIER = 'IDENTIFIER'
-    INTEGER_LITERAL = 'Linklit'
-    FLOAT_LITERAL = 'Bubblelit'
-    STRING_LITERAL = 'Piecelit'
+    INTEGER_LITERAL = 'INTEGER_LITERAL'
+    FLOAT_LITERAL = 'FLOAT_LITERAL'
+    STRING_LITERAL = 'STRING_LITERAL'
     OPERATOR = 'OPERATOR'
     PUNCTUATOR = 'PUNCTUATOR'
     UNKNOWN = 'UNKNOWN'
@@ -18,11 +17,12 @@ class Token:
         self.type = token_type
         self.value = value
 
-
 class LexicalAnalyzer:
     def __init__(self, source_code):
         self.input = source_code
         self.position = 0
+
+        # Keywords with their delimiters
         self.keywords = {
             "Base": "delim7",
             "Bubble": "delim3",
@@ -53,6 +53,7 @@ class LexicalAnalyzer:
             "Wobble": "delim8",
         }
 
+        # Operators and symbols with their delimiters
         self.symbols = {
             "=": "delim11",
             "==": "delim13",
@@ -69,9 +70,9 @@ class LexicalAnalyzer:
             "!!": "delim12",
             "!=": "delim11",
             "<": "delim11",
-            "<=": "delim11",
+            "<=": "delim13",
             ">": "delim11",
-            ">=": "delim11",
+            ">=": "delim13",
             "&&": "delim12",
             "||": "delim12",
             "{": "delim14",
@@ -81,8 +82,11 @@ class LexicalAnalyzer:
             "[": "delim14",
             "]": "delim14",
             ";": "delim3",
+            ",": "delim3",
+           
         }
 
+        # Updated delimiters
         self.delimiters = {
             "delim1": [" ", "\n", "\t"],
             "delim2": [None],
@@ -90,33 +94,63 @@ class LexicalAnalyzer:
             "delim4": [" ", '"'],
             "delim5": [" ", "("],
             "delim6": [" ", "{"],
-            "delim7": [" ", ":", "\n", "+"],
+            "delim7": [" ", ":", "\n", "\t"],
             "delim8": [";"],
             "delim9": [":"],
             "delim10": [";", " "],
-            "delim11": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
-            "delim12": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"), "("],
-            "delim13": [" ", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
-            "delim14": [" ", "\n", "{", *list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")],
-            "identifier_delim": [" ", "=", ";", ",", "{", "}", "(", ")"],
-            "piece_delim": ["}", ";", ")", "~", "=", " "],
+            "delim11": [" ", "<", ">", "=", "!", "&", "|"],
+            "delim12": [" ", "+", "-", "*", "/", "%", "("],
+            "delim13": [" ", "=", "<", ">", "!"],
+            "delim14": [" ", "\n", "{", "(", "["],
+            "iden_delim": [" ", "=", ";", ",", "{", "}", "(", ")"]
         }
-
 
     def is_whitespace(self, c):
         return c in self.delimiters["delim1"]
 
-    def is_identifier_boundary(self, c):
-        return c in self.delimiters["identifier_delim"]
+    def is_symbol(self, s):
+        return s in self.symbols
 
-    def is_piece_boundary(self, c):
-        return c in self.delimiters["piece_delim"]
-
-    def get_next_word(self):
+    def get_next_symbol(self):
         start = self.position
-        while self.position < len(self.input) and self.input[self.position].isalnum():
-            self.position += 1
-        return self.input[start:self.position]
+        # Detect if we are encountering symbols directly, and return that symbol
+        if self.is_symbol(self.input[self.position]):
+            self.position += 1  # Move position forward to avoid infinite loop
+            symbol = self.input[start:self.position]
+            # Check for consecutive delimiters
+            if self.position < len(self.input) and self.is_symbol(self.input[self.position]):
+                raise SyntaxError(f"Unexpected consecutive delimiters: '{symbol}{self.input[self.position]}'")
+            return symbol
+        else:
+            # If not a symbol, get the next valid identifier
+            while self.position < len(self.input) and not self.is_whitespace(self.input[self.position]) and not self.is_symbol(self.input[self.position]):
+                self.position += 1
+            return self.input[start:self.position]
+
+    def is_valid_identifier(self, word):
+        # Length check (optional)
+        if len(word) == 0:
+            return False
+        if len(word) > 20:  # Exceeds maximum length
+            return False
+
+        # Check if it starts with a lowercase letter
+        if not word[0].islower():  # Must start with a lowercase letter
+            return False
+
+        # Remove any trailing delimiters from the identifier
+        word = word.rstrip("".join(self.delimiters["iden_delim"]))
+
+        # Check if there are any multiple delimiters at the end
+        if any(delim * 2 in word for delim in self.delimiters["iden_delim"]):
+            return False  # Multiple delimiters found
+
+        # Check if all characters are valid (alphanumeric or underscores)
+        for char in word:
+            if not (char.isalnum() or char == "_"):  # Allow letters, digits, and underscores
+                return False
+
+        return True
 
     def tokenize(self):
         tokens = []
@@ -126,14 +160,15 @@ class LexicalAnalyzer:
         while self.position < len(self.input):
             current_char = self.input[self.position]
 
+            # Check for whitespace (spaces) explicitly
             if self.is_whitespace(current_char):
-                tokens.append(Token(TokenType.UNKNOWN, "space"))
-                lexemes.append("space")
+                tokens.append(Token(TokenType.PUNCTUATOR, "SPACE"))
+                
                 self.position += 1
                 continue
 
             # Check for keywords
-            word = self.get_next_word()
+            word = self.get_next_symbol()
             if word in self.keywords:
                 tokens.append(Token(TokenType.KEYWORD, word))
                 lexemes.append(word)
@@ -144,53 +179,63 @@ class LexicalAnalyzer:
                 lexemes.append(word)
 
             # Check for identifiers
-            if current_char.isalpha():
-                start = self.position
-                while self.position < len(self.input) and not self.is_identifier_boundary(self.input[self.position]):
-                    self.position += 1
-                identifier = self.input[start:self.position]
-                tokens.append(Token(TokenType.IDENTIFIER, identifier))
-                lexemes.append(identifier)
-                continue
-
-            # Check for integers or floats
-            if current_char.isdigit() or (current_char == '.' and self.input[self.position + 1].isdigit()):
-                start = self.position
-                is_float = False
-                while self.position < len(self.input) and (self.input[self.position].isdigit() or self.input[self.position] == '.'):
-                    if self.input[self.position] == '.':
-                        is_float = True
-                    self.position += 1
-                literal = self.input[start:self.position]
-                token_type = TokenType.FLOAT_LITERAL if is_float else TokenType.INTEGER_LITERAL
-                tokens.append(Token(token_type, literal))
-                lexemes.append(literal)
-                continue
-
-            # Check for string literals (Piecelit)
-            if current_char == '"':  # Piecelit starts with a double quote
-                start = self.position
-                self.position += 1
-                while self.position < len(self.input) and not self.is_piece_boundary(self.input[self.position]):
-                    self.position += 1
-                if self.position >= len(self.input):  # Missing closing
-                    tokens.append(Token(TokenType.UNKNOWN, self.input[start:]))
-                    lexemes.append(self.input[start:])
+            elif word.isalnum() or "_" in word:
+                if self.is_valid_identifier(word):
+                    tokens.append(Token(TokenType.IDENTIFIER, word))
                 else:
-                    self.position += 1  # Include the boundary
-                    piecelit = self.input[start:self.position]
-                    tokens.append(Token(TokenType.STRING_LITERAL, piecelit))
-                    lexemes.append(piecelit)
-                continue
+                    tokens.append(Token(TokenType.UNKNOWN, word))
+                lexemes.append(word)
 
             # Unknown or other characters
             else:
-                tokens.append(Token(TokenType.UNKNOWN, current_char))
-                lexemes.append(current_char)
-                self.position += 1
+                tokens.append(Token(TokenType.UNKNOWN, word))
+                lexemes.append(word)
 
         return tokens, lexemes
 
+def validate_syntax(tokens, keywords):
+    errors = []
+
+    for token in tokens:
+        if token.type == TokenType.UNKNOWN:
+            if len(token.value) > 20:
+                errors.append(f"Identifier Error: '{token.value}' exceeds 20 characters")
+            else:
+                errors.append(f"Lexical Error: '{token.value}' is not a valid identifier")
+
+    return errors
+
+def update_analysis(event=None):
+    source_code = text_with_line_numbers.text.get("1.0", "end-1c")
+    lexer = LexicalAnalyzer(source_code)
+    try:
+        tokens, lexemes = lexer.tokenize()
+
+        lexeme_text.delete("1.0", "end")
+        token_text.delete("1.0", "end")
+        error_text.delete("1.0", "end")
+
+        # Display lexemes and tokens
+        for lexeme in lexemes:
+            lexeme_text.insert(tk.END, f"{lexeme}\n")
+
+        for token in tokens:
+            if token.type == TokenType.IDENTIFIER:
+                token_text.insert(tk.END, f"IDENTIFIER\n")
+            else:
+                token_text.insert(tk.END, f"{token.value}\n")
+
+        # Validate syntax
+        errors = validate_syntax(tokens, lexer.keywords)
+        if errors:
+            for error in errors:
+                error_text.insert(tk.END, error + "\n")
+        else:
+            error_text.insert(tk.END, "No errors detected.\n")
+
+    except SyntaxError as e:
+        error_text.delete("1.0", "end")  # Clear previous errors
+        error_text.insert(tk.END, str(e) + "\n")
 
 class TextWithLineNumbers(tk.Frame):
     def __init__(self, master=None, **kwargs):
@@ -202,7 +247,7 @@ class TextWithLineNumbers(tk.Frame):
         self.text = scrolledtext.ScrolledText(self, wrap="none")
         self.text.pack(side="right", fill="both", expand=True)
 
-        self.text.bind("<KeyPress>", self._update_line_numbers)
+        self.text.bind("<KeyRelease>", self._update_line_numbers)
         self.text.bind("<MouseWheel>", self._update_line_numbers)
         self.text.bind("<ButtonRelease>", self._update_line_numbers)
         self.text.bind("<Configure>", self._update_line_numbers)
@@ -217,42 +262,6 @@ class TextWithLineNumbers(tk.Frame):
 
         self.line_numbers.config(state="disabled")
         self.line_numbers.yview_moveto(self.text.yview()[0])
-
-
-def validate_syntax(tokens):
-    errors = []
-    if not tokens:
-        errors.append("No code provided.")
-        return errors
-    if tokens[0].value != "Build":
-        errors.append("Program must start with 'Build'.")
-    if tokens[-1].value != "Destroy":
-        errors.append("Program must end with 'Destroy'.")
-    return errors
-
-
-def update_analysis(event=None):
-    source_code = text_with_line_numbers.text.get("1.0", "end-1c")
-    lexer = LexicalAnalyzer(source_code)
-    tokens, lexemes = lexer.tokenize()
-
-    lexeme_text.delete("1.0", "end")
-    token_text.delete("1.0", "end")
-    error_text.delete("1.0", "end")
-
-    for lexeme in lexemes:
-        lexeme_text.insert(tk.END, f"{lexeme}\n")
-
-    for token in tokens:
-        token_text.insert(tk.END, f"{token.value}\n")
-
-    errors = validate_syntax(tokens)
-    if errors:
-        for error in errors:
-            error_text.insert(tk.END, error + "\n")
-    else:
-        error_text.insert(tk.END, "No errors detected.\n")
-
 
 root = tk.Tk()
 root.title("Lego-C Code Analyzer")
