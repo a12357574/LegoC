@@ -315,6 +315,7 @@ class TransitionLexer:
         return tokens, errors
 
 def validate_syntax(tokens):
+def validate_syntax(tokens):
     errors = []
     for token in tokens:
         if token.type == TokenType.UNKNOWN:
@@ -325,7 +326,12 @@ def update_analysis(event=None):
     source_code = text_with_line_numbers.text.get("1.0", "end-1c")
     lexer = TransitionLexer()
     tokens, errors = lexer.analyze(source_code)
+    lexer = TransitionLexer()
+    tokens, errors = lexer.analyze(source_code)
 
+    lexeme_text.delete("1.0", "end")
+    token_text.delete("1.0", "end")
+    error_text.delete("1.0", "end")
     lexeme_text.delete("1.0", "end")
     token_text.delete("1.0", "end")
     error_text.delete("1.0", "end")
@@ -333,7 +339,18 @@ def update_analysis(event=None):
     for token in tokens:
         lexeme_text.insert(tk.END, f"{token.value}\n")
         token_text.insert(tk.END, f"{token.type}\n")
+    for token in tokens:
+        lexeme_text.insert(tk.END, f"{token.value}\n")
+        token_text.insert(tk.END, f"{token.type}\n")
 
+    lexical_errors = validate_syntax(tokens)
+    errors.extend(lexical_errors)
+
+    if errors:
+        for error in errors:
+            error_text.insert(tk.END, error + "\n")
+    else:
+        error_text.insert(tk.END, "No errors detected.\n")
     lexical_errors = validate_syntax(tokens)
     errors.extend(lexical_errors)
 
