@@ -15,7 +15,7 @@ class Token:
 # Lexer logic
 class TransitionLexer:
     def __init__(self):
-        self.final_states = {
+        self.final_states = { #token
             5: 'Base',
             11: 'Bubble',
             15: 'Build',
