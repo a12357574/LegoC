@@ -1,15 +1,8 @@
 import tkinter as tk
 from tkinter import scrolledtext
 
-# Enum-like class for Token Types
 class TokenType:
     KEYWORD = 'KEYWORD'
-    IDENTIFIER = 'IDENTIFIER'
-    INTEGER_LITERAL = 'INTEGER_LITERAL'
-    FLOAT_LITERAL = 'FLOAT_LITERAL'
-    STRING_LITERAL = 'STRING_LITERAL'
-    OPERATOR = 'OPERATOR'
-    PUNCTUATOR = 'PUNCTUATOR'
     UNKNOWN = 'UNKNOWN'
 
 class Token:
@@ -17,225 +10,326 @@ class Token:
         self.type = token_type
         self.value = value
 
-class LexicalAnalyzer:
-    def __init__(self, source_code):
-        self.input = source_code
-        self.position = 0
-
-        # Keywords with their delimiters
-        self.keywords = {
-            "Base": "delim7",
-            "Bubble": "delim3",
-            "Build": "delim1",
-            "Broke": "delim8",
-            "Change": "delim5",
-            "Con": "delim8",
-            "Const": "delim2",
-            "Create": "delim5",
-            "Def": "delim9",
-            "Destroy": "delim2",
-            "Display": "delim4",
-            "Do": "delim6",
-            "Flip": "delim8",
-            "Ifsnap": "delim6",
-            "Link": "delim3",
-            "Pane": "delim5",
-            "Piece": "delim3",
-            "Put": "delim5",
-            "Rebrick": "delim10",
-            "Revoid": "delim8",
-            "Stable": "delim8",
-            "Set": "delim6",
-            "Snap": "delim6",
-            "Snapif": "delim5",
-            "Subs": "delim3",
-            "While": "delim5",
-            "Wobble": "delim8",
+class TransitionLexer:
+    def __init__(self):
+        self.final_states = {
+            5: 'Base',
+            11: 'Bubble',
+            15: 'Build',
+            20: 'Broke',
+            27: 'Change',
+            30: 'Con',
+            33: 'Const',
+            39: 'Create',
+            43: 'Def',
+            49: 'Destroy',
+            56: 'Display',
+            58: 'Do',
+            63: 'Flip',
+            70: 'Ifsnap',
+            75: 'Link',
+            80: 'Pane',
+            85: 'Piece',
+            88: 'Put',
+            96: 'Rebrick',
+            101: 'Revoid',
+            108: 'Stable',
+            111: 'Set',
+            115: 'Snap',
+            121: 'Snapif',
+            125: 'Subs',
+            131: 'While',
+            138: 'Wobble'
         }
 
-        # Operators and symbols with their delimiters
-        self.symbols = {
-            "=": "delim11",
-            "==": "delim13",
-            "+": "delim12",
-            "+=": "delim12",
-            "-": "delim12",
-            "-=": "delim12",
-            "*": "delim12",
-            "*=": "delim12",
-            "/": "delim12",
-            "/=": "delim12",
-            "%": "delim12",
-            "%=": "delim12",
-            "!!": "delim12",
-            "!=": "delim11",
-            "<": "delim11",
-            "<=": "delim13",
-            ">": "delim11",
-            ">=": "delim13",
-            "&&": "delim12",
-            "||": "delim12",
-            "{": "delim14",
-            "}": "delim14",
-            "(": "delim14",
-            ")": "delim14",
-            "[": "delim14",
-            "]": "delim14",
-            ";": "delim3",
-            ",": "delim3",
-           
-        }
-
-        # Updated delimiters
-        self.delimiters = {
-            "delim1": [" ", "\n", "\t"],
-            "delim2": [None],
-            "delim3": [" "],
-            "delim4": [" ", '"'],
-            "delim5": [" ", "("],
-            "delim6": [" ", "{"],
-            "delim7": [" ", ":", "\n", "\t"],
-            "delim8": [";"],
-            "delim9": [":"],
-            "delim10": [";", " "],
-            "delim11": [" ", "<", ">", "=", "!", "&", "|"],
-            "delim12": [" ", "+", "-", "*", "/", "%", "("],
-            "delim13": [" ", "=", "<", ">", "!"],
-            "delim14": [" ", "\n", "{", "(", "["],
-            "iden_delim": [" ", "=", ";", ",", "{", "}", "(", ")"]
-        }
-
-    def is_whitespace(self, c):
-        return c in self.delimiters["delim1"]
-
-    def is_symbol(self, s):
-        return s in self.symbols
-
-    def get_next_symbol(self):
-        start = self.position
-        # Detect if we are encountering symbols directly, and return that symbol
-        if self.is_symbol(self.input[self.position]):
-            self.position += 1  # Move position forward to avoid infinite loop
-            symbol = self.input[start:self.position]
-            # Check for consecutive delimiters
-            if self.position < len(self.input) and self.is_symbol(self.input[self.position]):
-                raise SyntaxError(f"Unexpected consecutive delimiters: '{symbol}{self.input[self.position]}'")
-            return symbol
-        else:
-            # If not a symbol, get the next valid identifier
-            while self.position < len(self.input) and not self.is_whitespace(self.input[self.position]) and not self.is_symbol(self.input[self.position]):
-                self.position += 1
-            return self.input[start:self.position]
-
-    def is_valid_identifier(self, word):
-        # Length check (optional)
-        if len(word) == 0:
-            return False
-        if len(word) > 20:  # Exceeds maximum length
-            return False
-
-        # Check if it starts with a lowercase letter
-        if not word[0].islower():  # Must start with a lowercase letter
-            return False
-
-        # Remove any trailing delimiters from the identifier
-        word = word.rstrip("".join(self.delimiters["iden_delim"]))
-
-        # Check if there are any multiple delimiters at the end
-        if any(delim * 2 in word for delim in self.delimiters["iden_delim"]):
-            return False  # Multiple delimiters found
-
-        # Check if all characters are valid (alphanumeric or underscores)
-        for char in word:
-            if not (char.isalnum() or char == "_"):  # Allow letters, digits, and underscores
-                return False
-
-        return True
-
-    def tokenize(self):
+    def analyze(self, input_string):
+        state = 0
+        token_value = ""
         tokens = []
-        lexemes = []
-        self.position = 0  # Reset position for each analysis
+        errors = []
+        first_token_checked = False
 
-        while self.position < len(self.input):
-            current_char = self.input[self.position]
-
-            # Check for whitespace (spaces) explicitly
-            if self.is_whitespace(current_char):
-                tokens.append(Token(TokenType.PUNCTUATOR, "SPACE"))
-                
-                self.position += 1
+        for char in input_string:
+            if char in {' ', '\n', '\t'}:
+                if state in self.final_states:
+                    if not first_token_checked:
+                        if self.final_states[state] != 'Build':
+                            errors.append("Lexical Error: The code must start with 'Build'")
+                        first_token_checked = True
+                    tokens.append(Token(TokenType.KEYWORD, self.final_states[state]))
+                elif token_value.strip():
+                    tokens.append(Token(TokenType.UNKNOWN, token_value.strip()))
+                token_value = ""
+                state = 0
                 continue
 
-            # Check for keywords
-            word = self.get_next_symbol()
-            if word in self.keywords:
-                tokens.append(Token(TokenType.KEYWORD, word))
-                lexemes.append(word)
+            token_value += char
 
-            # Check for symbols
-            elif word in self.symbols:
-                tokens.append(Token(TokenType.OPERATOR, word))
-                lexemes.append(word)
+            match state:
+                case 0:
+                    if char == 'B':
+                        state = 1
+                    elif char == 'C':
+                        state = 21
+                    elif char == 'D':
+                        state = 40
+                    elif char == 'F':
+                        state = 59
+                    elif char == 'I':
+                        state = 64
+                    elif char == 'L':
+                        state = 71
+                    elif char == 'P':
+                        state = 76
+                    elif char == 'R':
+                        state = 89
+                    elif char == 'S':
+                        state = 102
+                    elif char == 'W':
+                        state = 126
+                    else:
+                        state = 0
 
-            # Check for identifiers
-            elif word.isalnum() or "_" in word:
-                if self.is_valid_identifier(word):
-                    tokens.append(Token(TokenType.IDENTIFIER, word))
-                else:
-                    tokens.append(Token(TokenType.UNKNOWN, word))
-                lexemes.append(word)
+                # Transitions for "Base"
+                case 1:
+                    if char == 'a':
+                        state = 2
+                case 2:
+                    if char == 's':
+                        state = 3
+                case 3:
+                    if char == 'e':
+                        state = 4
+                case 4:
+                    if char in {' ', '\n', '\t'}:
+                        state = 5
 
-            # Unknown or other characters
-            else:
-                tokens.append(Token(TokenType.UNKNOWN, word))
-                lexemes.append(word)
+                # Transitions for "Bubble"
+                case 6:
+                    if char == 'u':
+                        state = 7
+                case 7:
+                    if char == 'b':
+                        state = 8
+                case 8:
+                    if char == 'b':
+                        state = 9
+                case 9:
+                    if char == 'l':
+                        state = 10
+                case 10:
+                    if char == 'e':
+                        state = 11
 
-        return tokens, lexemes
+                # Transitions for "Build"
+                case 12:
+                    if char == 'u':
+                        state = 13
+                case 13:
+                    if char == 'i':
+                        state = 14
+                case 14:
+                    if char == 'l':
+                        state = 15
 
-def validate_syntax(tokens, keywords):
+                # Transitions for "Link"
+                case 71:
+                    if char == 'i':
+                        state = 72
+                case 72:
+                    if char == 'n':
+                        state = 73
+                case 73:
+                    if char == 'k':
+                        state = 75
+
+                # Transitions for "Pane"
+                case 76:
+                    if char == 'a':
+                        state = 77
+                case 77:
+                    if char == 'n':
+                        state = 78
+                case 78:
+                    if char == 'e':
+                        state = 80
+
+                # Transitions for "Piece"
+                case 81:
+                    if char == 'i':
+                        state = 82
+                case 82:
+                    if char == 'e':
+                        state = 83
+                case 83:
+                    if char == 'c':
+                        state = 84
+                case 84:
+                    if char == 'e':
+                        state = 85
+
+                # Transitions for "Put"
+                case 86:
+                    if char == 'u':
+                        state = 87
+                case 87:
+                    if char == 't':
+                        state = 88
+
+                # Transitions for "Rebrick"
+                case 89:
+                    if char == 'e':
+                        state = 90
+                case 90:
+                    if char == 'b':
+                        state = 91
+                case 91:
+                    if char == 'r':
+                        state = 92
+                case 92:
+                    if char == 'i':
+                        state = 93
+                case 93:
+                    if char == 'c':
+                        state = 94
+                case 94:
+                    if char == 'k':
+                        state = 96
+
+                # Transitions for "Revoid"
+                case 97:
+                    if char == 'o':
+                        state = 98
+                case 98:
+                    if char == 'i':
+                        state = 99
+                case 99:
+                    if char == 'd':
+                        state = 101
+
+                # Transitions for "Stable"
+                case 102:
+                    if char == 't':
+                        state = 103
+                case 103:
+                    if char == 'a':
+                        state = 104
+                case 104:
+                    if char == 'b':
+                        state = 105
+                case 105:
+                    if char == 'l':
+                        state = 106
+                case 106:
+                    if char == 'e':
+                        state = 108
+
+                # Transitions for "Set"
+                case 111:
+                    if char == 'e':
+                        state = 112
+                case 112:
+                    if char == 't':
+                        state = 111
+
+                # Transitions for "Snap"
+                case 113:
+                    if char == 'n':
+                        state = 114
+                case 114:
+                    if char == 'a':
+                        state = 115
+                case 115:
+                    if char == 'p':
+                        state = 115
+
+                # Transitions for "Snapif"
+                case 116:
+                    if char == 'i':
+                        state = 117
+                case 117:
+                    if char == 'f':
+                        state = 121
+
+                # Transitions for "Subs"
+                case 122:
+                    if char == 'b':
+                        state = 123
+                case 123:
+                    if char == 's':
+                        state = 125
+
+                # Transitions for "While"
+                case 126:
+                    if char == 'h':
+                        state = 127
+                case 127:
+                    if char == 'i':
+                        state = 128
+                case 128:
+                    if char == 'l':
+                        state = 129
+                case 129:
+                    if char == 'e':
+                        state = 131
+
+                # Transitions for "Wobble"
+                case 132:
+                    if char == 'o':
+                        state = 133
+                case 133:
+                    if char == 'b':
+                        state = 134
+                case 134:
+                    if char == 'b':
+                        state = 135
+                case 135:
+                    if char == 'l':
+                        state = 136
+                case 136:
+                    if char == 'e':
+                        state = 138
+
+                case _:
+                    state = 0
+
+        if state in self.final_states:
+            tokens.append(Token(TokenType.KEYWORD, self.final_states[state]))
+        elif token_value.strip():
+            tokens.append(Token(TokenType.UNKNOWN, token_value.strip()))
+
+        return tokens, errors
+
+def validate_syntax(tokens):
     errors = []
 
     for token in tokens:
         if token.type == TokenType.UNKNOWN:
-            if len(token.value) > 20:
-                errors.append(f"Identifier Error: '{token.value}' exceeds 20 characters")
-            else:
-                errors.append(f"Lexical Error: '{token.value}' is not a valid identifier")
+            errors.append(f"Lexical Error: '{token.value}' is not recognized")
 
     return errors
 
 def update_analysis(event=None):
     source_code = text_with_line_numbers.text.get("1.0", "end-1c")
-    lexer = LexicalAnalyzer(source_code)
-    try:
-        tokens, lexemes = lexer.tokenize()
+    lexer = TransitionLexer()
+    tokens, errors = lexer.analyze(source_code)
 
-        lexeme_text.delete("1.0", "end")
-        token_text.delete("1.0", "end")
-        error_text.delete("1.0", "end")
+    lexeme_text.delete("1.0", "end")
+    token_text.delete("1.0", "end")
+    error_text.delete("1.0", "end")
 
-        # Display lexemes and tokens
-        for lexeme in lexemes:
-            lexeme_text.insert(tk.END, f"{lexeme}\n")
+    for token in tokens:
+        lexeme_text.insert(tk.END, f"{token.value}\n")
+        token_text.insert(tk.END, f"{token.type}\n")
 
-        for token in tokens:
-            if token.type == TokenType.IDENTIFIER:
-                token_text.insert(tk.END, f"IDENTIFIER\n")
-            else:
-                token_text.insert(tk.END, f"{token.value}\n")
+    lexical_errors = validate_syntax(tokens)
+    errors.extend(lexical_errors)
 
-        # Validate syntax
-        errors = validate_syntax(tokens, lexer.keywords)
-        if errors:
-            for error in errors:
-                error_text.insert(tk.END, error + "\n")
-        else:
-            error_text.insert(tk.END, "No errors detected.\n")
-
-    except SyntaxError as e:
-        error_text.delete("1.0", "end")  # Clear previous errors
-        error_text.insert(tk.END, str(e) + "\n")
+    if errors:
+        for error in errors:
+            error_text.insert(tk.END, error + "\n")
+    else:
+        error_text.insert(tk.END, "No errors detected.\n")
 
 class TextWithLineNumbers(tk.Frame):
     def __init__(self, master=None, **kwargs):
@@ -264,7 +358,7 @@ class TextWithLineNumbers(tk.Frame):
         self.line_numbers.yview_moveto(self.text.yview()[0])
 
 root = tk.Tk()
-root.title("Lego-C Code Analyzer")
+root.title("Transition-Based Code Analyzer")
 
 input_frame = tk.Frame(root)
 input_frame.pack(fill=tk.BOTH, pady=5)
