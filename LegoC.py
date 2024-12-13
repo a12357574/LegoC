@@ -315,7 +315,6 @@ class TransitionLexer:
         return tokens, errors
 
 def validate_syntax(tokens):
-def validate_syntax(tokens):
     errors = []
     for token in tokens:
         if token.type == TokenType.UNKNOWN:
