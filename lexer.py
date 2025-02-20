@@ -1,7 +1,79 @@
 import tkinter as tk
+from tkinter import ttk
+from tkinter import filedialog
+from syntax_analyzer import SyntaxAnalyzer
 
-def process_input(event=None):
-    input_text = input_entry.get("1.0", "end-1c")  # Get input text
+def run_lexical_analysis():
+    process_input(analyze=True)
+    syntax_output_text.delete("1.0", tk.END)
+def run_syntax_analysis():
+    # Get tokens and input text from the GUI
+    tokens = token_output.get("1.0", tk.END).splitlines()
+    input_text = input_entry.get("1.0", tk.END)
+    lines = input_text.splitlines()
+    
+    # Create analyzer with both tokens and lines
+    analyzer = SyntaxAnalyzer(tokens, lines)
+    try:
+        analyzer.analyze()
+        syntax_output_text.delete("1.0", tk.END)
+        syntax_output_text.insert(tk.END, "Syntax Analysis Complete - No errors found\n")
+    except SyntaxError as e:
+        syntax_output_text.delete("1.0", tk.END)
+        syntax_output_text.insert(tk.END, f"Syntax Error: {str(e)}\n")
+
+def run_semantic_analysis():
+    process_input(analyze=True)
+    semantic_output_text.delete("1.0", tk.END)
+    semantic_output_text.insert(tk.END, "Semantic analysis results...\n")
+
+def open_file():
+    
+    file_path = filedialog.askopenfilename(
+        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+    )
+    if file_path:
+        try:
+            with open(file_path, 'r') as file:
+                # Clear existing content
+                input_entry.delete("1.0", tk.END)
+                
+                # Read and insert new content
+                content = file.read()
+                input_entry.insert("1.0", content)
+                
+                # Update line numbers
+                update_line_numbers()
+                
+                # Clear output boxes
+                lexeme_output.delete("1.0", tk.END)
+                token_output.delete("1.0", tk.END)
+                output_text.delete("1.0", tk.END)
+                
+                # Optional: Show success message
+                output_text.insert(tk.END, f"File loaded successfully: {file_path}\n")
+        except Exception as e:
+            output_text.insert(tk.END, f"Error opening file: {str(e)}\n")
+
+def save_file():
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".txt",
+        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+    )
+    if file_path:
+        try:
+            content = input_entry.get("1.0", tk.END)
+            with open(file_path, 'w') as file:
+                file.write(content)
+            output_text.insert(tk.END, "File saved successfully!\n")
+        except Exception as e:
+            output_text.insert(tk.END, f"Error saving file: {str(e)}\n")
+
+def process_input(event=None, analyze=False):
+    if not analyze:  # If not triggered by analysis button, return
+        return
+    input_text = input_entry.get("1.0", tk.END)  # Get input text
+    lines = input_text.splitlines()
     lexeme_output.delete("1.0", tk.END)  # Clear previous output
     token_output.delete("1.0", tk.END)   # Clear token output
     output_text.delete("1.0", tk.END)    # Clear lexical error output
@@ -10,8 +82,14 @@ def process_input(event=None):
     quotation = '"'
     # Split input into lines
     lines = input_text.split("\n")
-    if not lines or all(not line.strip() for line in lines):
-        output_text.insert(tk.END, "Input is empty. Please provide some input.\n")
+    if not any(not c.isspace() for c in input_text):  #if input is empty or all spaces
+        if input_text:  #if there are spaces, process
+            for char in input_text:
+                if char == " ":
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+        else:  #empty input
+            output_text.insert(tk.END, "Input is empty. Please provide some input.\n")
         return
 
     for line_number, line in enumerate(lines):
@@ -129,6 +207,12 @@ def process_input(event=None):
                 elif char.islower():  # Check for identifiers starting with lowercase letter
                     state = 20
                     word += char
+                elif char == " ":
+                    state = 0
+                    word = ""
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+
                 
                 elif not char.isspace():
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical Error\n")
@@ -195,7 +279,7 @@ def process_input(event=None):
                     word = ""
                     target_word = "Broke"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == " ":
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}\n")
                     state = 0
@@ -282,13 +366,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Change"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(":
                     state = 141
                     word = char
                     target_word = "Change"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '(' \n")
                     state = 0
@@ -313,7 +399,7 @@ def process_input(event=None):
                     word = ""
                     target_word = "Con"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == " ":
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be ';' or 's' \n")
                     word = ""
@@ -345,7 +431,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Const"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' \n")
                     state = 0
@@ -409,13 +497,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Create"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(":
                     state = 141
                     word = char
                     target_word = "Create"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '(' \n")
                     state = 0
@@ -465,7 +555,7 @@ def process_input(event=None):
                     word = ""
                     target_word = "Def"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be ':' \n")
                     state = 0
@@ -529,9 +619,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Destroy"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
-                    output_text.insert(tk.END, f" {char}\n")
+                    # fixed test item 5, "first character after destroy appears in terminal instead in lexeme"
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<null>' \n")
                     state = 0
                     word = ""
@@ -542,19 +632,21 @@ def process_input(event=None):
                     word = ""
                     target_word = "Do"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(":
                     state = 141
                     word = char
                     target_word = "Do"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "{":
                     state = 139
                     word = char
                     target_word = "Do"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or <openbrace> or ( \n")
                     state = 0
@@ -631,13 +723,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Display"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
-                elif char == '"':
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == '"': #reminder, bug for the pieceliteral, should read #,pieceliteral,# instead of "pieceliteral"
                     state = 167
                     word = ""
                     target_word = "Display"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f'Line {line_number + 1}: Lexical error at position {index}: should be <space> or " \n')
                     state = 0
@@ -688,7 +782,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Flip"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
                     state = 0
@@ -765,12 +861,14 @@ def process_input(event=None):
                     word = ""
                     target_word = "Ifsnap"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "{":
                     word = char
                     target_word = "Ifsnap"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     state = 139 #state of {
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '<open_curly_brace>'\n")
@@ -822,7 +920,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Link"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
                     state = 0
@@ -879,13 +979,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Pane"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(":
                     state = 141
                     word = char
                     target_word = "Pane"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '('\n")
                     state = 0
@@ -936,7 +1038,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Piece"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
                     state = 0
@@ -956,12 +1060,22 @@ def process_input(event=None):
                     word = ""
             
             elif state == 78: #Final state for Put
-                if char == " " or char == "(":
+                if char == " ":
                     state = 0
                     word = ""
                     target_word = "Put"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "(":
+                    state = 0
+                    word = ""
+                    target_word = "Put"
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "(\n")
+                    token_output.insert(tk.END, "(\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
                     state = 0
@@ -1041,7 +1155,7 @@ def process_input(event=None):
                     word = ""
                     target_word = "Revoid"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n") 
+                    token_output.insert(tk.END, f"{target_word}\n") 
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<semicolon>'\n")
                     state = 0
@@ -1105,13 +1219,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Rebrick"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == ";":
                     state = 145
                     word = ""
                     target_word = "Rebrick"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '<semicolon>'\n")
                     state = 0
@@ -1197,7 +1313,7 @@ def process_input(event=None):
                     word = ""
                     target_word = "Stable"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<semicolon>'\n")
                     state = 0
@@ -1230,18 +1346,26 @@ def process_input(event=None):
                     word = ""
 
             elif state == 98: #Final state for Snap
-                if char == " " or char == "\n":
+                if char == " ":
                     state = 0
                     word = ""
                     target_word = "Snap"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "\n":
+                    state = 0
+                    word = ""
+                    target_word = "Snap"
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "{":
                     state = 139
                     word = ""
                     target_word = "Snap"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "i": #For Snapif 
                     state = 99
                     word += char
@@ -1269,13 +1393,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Snapif"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(":
                     state = 141
                     word = ""
                     target_word = "Snapif"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '('\n")
                     state = 0   
@@ -1300,13 +1426,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "Set"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "{":
                     state = 139
                     word = ""
                     target_word = "Set"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '<open_curly_brace'\n")
                     state = 0   
@@ -1344,7 +1472,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Subs"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
                     state = 0   
@@ -1406,12 +1536,22 @@ def process_input(event=None):
                     word = ""
             
             elif state == 110: #Final state for While
-                if char == " " or char == "(":
+                if char == " ":
                     state = 0
                     word = ""
                     target_word = "While"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "(":
+                    state = 0
+                    word = ""
+                    target_word = "While"
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "(")
+                    token_output.insert(tk.END, "(")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>' or '(' \n")
                     state = 0   
@@ -1475,7 +1615,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Wobble"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, ";\n")
+                    token_output.insert(tk.END, ";\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<semicolon>' \n")
                     state = 0   
@@ -1487,7 +1629,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "=" #For '=='
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "=": #For Snapif
                     state = 117
                     word = char
@@ -1495,19 +1639,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1520,30 +1664,32 @@ def process_input(event=None):
                     word = ""
                     target_word = "==" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word = char
                     target_word = "==" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "==" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "==" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "==" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1556,13 +1702,15 @@ def process_input(event=None):
                     word = ""
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word = ""
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "=": #For Snapif
                     state = 119
                     word += char
@@ -1570,19 +1718,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1595,30 +1743,32 @@ def process_input(event=None):
                     word = char
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1631,13 +1781,15 @@ def process_input(event=None):
                     word += char
                     target_word = "-" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "-"  
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "=": #For Snapif
                     state = 121
                     word += char
@@ -1645,19 +1797,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "-" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "-" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "-" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1667,33 +1819,35 @@ def process_input(event=None):
             elif state == 121: #Final state for '-='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = char
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1706,13 +1860,15 @@ def process_input(event=None):
                     word += char
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "=": #For Snapif
                     state = 123
                     word += char
@@ -1720,19 +1876,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1742,33 +1898,35 @@ def process_input(event=None):
             elif state == 123: #Final state for '*='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = char
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1781,13 +1939,15 @@ def process_input(event=None):
                     word += char
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "=": #For Snapif
                     state = 125
                     word += char
@@ -1795,19 +1955,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1817,33 +1977,35 @@ def process_input(event=None):
             elif state == 125: #Final state for '/='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = char
                     target_word = "/=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "/="
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "/=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "/=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "/=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -1856,13 +2018,15 @@ def process_input(event=None):
                     word += char
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "=": #For Snapif
                     state = 127
                     word += char
@@ -1870,19 +2034,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -1892,33 +2056,35 @@ def process_input(event=None):
             elif state == 127: #Final state for '%='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = char
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -1931,13 +2097,15 @@ def process_input(event=None):
                     word += char
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == "!":
                     state = 129
                     word += char
@@ -1948,22 +2116,22 @@ def process_input(event=None):
                     state = 20
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
-                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
+                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or '(' or 'alphanum' or 'space'\n")
                     state = 0
                     word = ""
             
@@ -1973,33 +2141,35 @@ def process_input(event=None):
                     word += char
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
-                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
+                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or '(' or 'space'\n")
                     state = 0
                     word = ""
 
@@ -2009,24 +2179,26 @@ def process_input(event=None):
                     word += char
                     target_word = "!=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = "!=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "!=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "!=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -2039,7 +2211,9 @@ def process_input(event=None):
                     word = char
                     target_word = "<" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "=": #For Snapif
                     state = 132
                     word += char
@@ -2047,19 +2221,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "<" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "<" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "<" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -2072,24 +2246,26 @@ def process_input(event=None):
                     word += char
                     target_word = "<=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = "<=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "<=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "<=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -2102,7 +2278,9 @@ def process_input(event=None):
                     word += char
                     target_word = ">" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "=": #For Snapif
                     state = 134
                     word += char
@@ -2110,19 +2288,19 @@ def process_input(event=None):
                     state = 20
                     target_word = ">" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = ">" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = ">" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -2135,24 +2313,26 @@ def process_input(event=None):
                     word += char
                     target_word = ">=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = ">=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = ">=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = ">=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -2165,12 +2345,14 @@ def process_input(event=None):
                     word += char
                     target_word = "&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "&" 
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                 elif char == "&": #For Snapif
                     state = 136
@@ -2179,19 +2361,19 @@ def process_input(event=None):
                     state = 20
                     target_word = "&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -2204,30 +2386,32 @@ def process_input(event=None):
                     word =""
                     target_word = "&&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "&&" 
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "&&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "&&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "&&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -2240,7 +2424,9 @@ def process_input(event=None):
                     word += char
                     target_word = "|" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "|": 
                     state = 138
                     word += char
@@ -2248,25 +2434,25 @@ def process_input(event=None):
                     state = 141
                     word += char
                     target_word = "|" 
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "|" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "|" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "|" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -2279,30 +2465,32 @@ def process_input(event=None):
                     word += char
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "(": 
                     state = 141
                     word += char
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char.islower():
                     state = 20
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '=' or 'alphanum' or 'space'\n")
@@ -2310,35 +2498,44 @@ def process_input(event=None):
                     word = ""
             
             elif state == 139: #Final state for '{'
-                if char == " " or char == "\n":
+                if char == " ":
                     state = 0
                     word += char
                     target_word = "{" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, "{\n")
+                    token_output.insert(tk.END, "{\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "\n":
+                    state = 0
+                    word += char
+                    target_word = "{" 
+                    lexeme_output.insert(tk.END, "{\n")
+                    token_output.insert(tk.END, "{\n")
+
                 elif char.islower():
                     state = 20
                     target_word = "{" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = "{" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "{" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "{" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
@@ -2346,35 +2543,43 @@ def process_input(event=None):
                     word = ""
 
             elif state == 140: #Final state for '}'
-                if char == " " or char == "\n":
+                if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "}" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, "}\n")
+                    token_output.insert(tk.END, "}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "\n":
+                    state = 0
+                    word = ""
+                    target_word = "}" 
+                    lexeme_output.insert(tk.END, "}\n")
+                    token_output.insert(tk.END, "}\n")
                 elif char.islower():
                     state = 20
                     target_word = "}" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = '}' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "}" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "}" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
@@ -2384,39 +2589,46 @@ def process_input(event=None):
             elif state == 141: #Final state for '('
                 if char == " ":
                     target_word = "(" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
-                    word += char
+                    lexeme_output.insert(tk.END, "(\n")
+                    token_output.insert(tk.END, "(\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                    word = ""
                     state = 0
+                elif char == "\n":
+                    target_word = "("
+                    lexeme_output.insert(tk.END, "(\n")
+                    token_output.insert(tk.END, "(\n")
+                    word = ""
                 elif char == ")":
                     state = 142
                     target_word = "(" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.islower():
                     state = 20
                     target_word = "(" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = '(' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "(" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "(" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isspace():
                      state = 141
@@ -2428,10 +2640,18 @@ def process_input(event=None):
             elif state == 142: #Final state for ')'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = ")" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, ")\n")
+                    token_output.insert(tk.END, ")\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "\n":
+                    state = 0
+                    word = ""
+                    target_word = ")"
+                    lexeme_output.insert(tk.END, ")\n")
+                    token_output.insert(tk.END, ")\n")
                 elif char == ";": # Semicolon
                         target_word = ")"
                         lexeme_output.insert(tk.END, f"{target_word}\n")
@@ -2442,25 +2662,25 @@ def process_input(event=None):
                     state = 20
                     target_word = ")" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = ')' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = ")" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = ")" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
@@ -2470,33 +2690,35 @@ def process_input(event=None):
             elif state == 143: #Final state for '['
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "[" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, "[\n")
+                    token_output.insert(tk.END, "[\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = "[" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = "[" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "[" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "[" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
@@ -2506,45 +2728,47 @@ def process_input(event=None):
             elif state == 144: #Final state for ']'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "]" 
-                    lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, "]\n")
+                    token_output.insert(tk.END, "]\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = "]" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == ";":
                     state = 145
                     target_word = ']' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "[":
                     state = 143
                     target_word = ']' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "{":
                     state = 139
                     target_word = ']' 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "]" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "]" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
@@ -2552,12 +2776,20 @@ def process_input(event=None):
                     word = ""
 
             elif state == 145: #Final state for ';'
-                if char == " " or char == "\n":
+                if char == " ":
                     state = 0
                     word += char
                     target_word = ";" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char == "\n":
+                    state = 0
+                    word += char
+                    target_word = ";"
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'space'\n")
                     state = 0
@@ -5126,24 +5358,26 @@ def process_input(event=None):
                     word += char
                     target_word = "," 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char.islower():
                     state = 20
                     target_word = "," 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isupper():
                     state = 20
                     target_word = "," 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char.isdigit():
                     state = 146
                     target_word = "," 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'alphanum' or 'space'\n")
@@ -5156,18 +5390,20 @@ def process_input(event=None):
                     word += char
                     target_word = ":" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 elif char == "{":
                     state = 139
                     target_word = ":" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 elif char == "\n":
                     state = 0
                     target_word = ":" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'newline' or 'space'\n")
@@ -5211,8 +5447,8 @@ def process_input(event=None):
                 if char == "\n" or char == " " or char == "\t":
                     word = ""
                     target_word = "Build"
-                    lexeme_output.insert(tk.END, f"{target_word} \n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                     state = 0  # Reset state for further processing
                     
                 else:
@@ -5255,7 +5491,9 @@ def process_input(event=None):
                     word = ""
                     target_word = "Bubble"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                 else:
                     lexeme_output.insert(tk.END, f" {char}\n")
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be '<space>'\n")
@@ -5297,13 +5535,13 @@ def process_input(event=None):
                     word = ""
                     target_word = "Base"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif char == ":":
                     state = 174
                     word = ""
                     target_word = "Base"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
-                    token_output.insert(tk.END, f"{target_word} \n")
+                    token_output.insert(tk.END, f"{target_word}\n")
                 elif not char.isspace():
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: Expected space, colon, newline, or tab after 'Base'\n")
@@ -5319,69 +5557,73 @@ def process_input(event=None):
                 if char.islower() or char.isupper() or char == "_" or char.isdigit():
                     word += char
                 elif char.isspace():
-                    if word:  # Only output if we have a word
+                    if word and len(word.strip()) > 0 and not word.isspace():  # Only output if we have a word
                         lexeme_output.insert(tk.END, f"{word}\n")
-                        token_output.insert(tk.END, f"Identifier\n")
+                        token_output.insert(tk.END, "Identifier\n")
                         word = ""
+                        state = 0
                 elif char == ";":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier\n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 145 #state of ;
                     word = ""
                 elif char == "{":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier\n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 139 #state of {
                     word = ""
                 elif char == "}":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier\n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 140 #state of }
                     word = ""
                 elif char == ")":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier\n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 142 #state of )
                     word += char
                 elif char == "~":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 146 #state of ~
                     word = ""
                 elif char == "(":
                     if word:  # Only output if we have a word
                         lexeme_output.insert(tk.END, f"{word}\n")
-                        token_output.insert(tk.END, f"Identifier\n")
+                        token_output.insert(tk.END, "Identifier\n")
                     state = 141 #state of (
                     word = ""
                 elif char == "[": 
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 143  #state of [
                     word = ""   
                 elif char == "]": 
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 144 #state of ]
                     word = ""
                 elif char == "=": 
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 116 #state of ]
                     word = ""
+                elif char == ">": 
+                        state = 133 #state of >
+                        word = ""    
                 elif char == " ": 
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 0 
                     word = ""
                 elif char == ",":
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 173
                     word = ","
                 elif char == "\n": 
                     lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Identifier  \n")
+                    token_output.insert(tk.END, "Identifier\n")
                     state = 0 
                     word = ""
                 else:
@@ -5409,67 +5651,252 @@ lego_logo = tk.Label(header_frame, text="Code Analyzer", fg="white", bg="#002F6C
 lego_logo.pack(side="left", padx=(20, 10))
  
 # --- LEXICAL ANALYZER LABEL ---
-lexical_label = tk.Label(root, text="Lexical Analyzer", bg="red", fg="white",
+lexical_label = tk.Label(root, text="Code Analyzer", bg="red", fg="white",
                          font=("Arial", 20, "bold"))
 lexical_label.place(relx=0.02, rely=0.68, relwidth=0.6, height=50)
  
 # --- MAIN INPUT FRAME (BIG BLACK BOX WITH YELLOW BORDER) ---
 input_frame = tk.Frame(root, bg="yellow", bd=5)
 input_frame.place(relx=0.02, rely=0.15, relwidth=0.6, relheight=0.5)
+
+# Move function definitions before widget creation
+def update_line_numbers(event=None):
+    lines = input_entry.get("1.0", "end-1c").split("\n")
+    line_numbers.config(state=tk.NORMAL)
+    line_numbers.delete("1.0", tk.END)
+    line_numbers.insert("1.0", "\n".join(str(i) for i in range(1, len(lines) + 1)))
+    line_numbers.config(state=tk.DISABLED)
+
+def on_text_change(event=None):
+    update_line_numbers()
+    process_input(event)
+
+# INNER FRAME TO HOLD LINE NUMBERS AND INPUT
+inner_frame = tk.Frame(input_frame)
+inner_frame.pack(fill="both", expand=True)
+
+# LINE NUMBERS TEXT WIDGET
+line_numbers = tk.Text(inner_frame, width=4, bg="lightgray", fg="black", 
+                      font=("Consolas", 14))
+line_numbers.pack(side="left", fill="y")
+line_numbers.config(state=tk.DISABLED)
+
+# MAIN INPUT TEXT WIDGET
+input_entry = tk.Text(inner_frame, bg="white", fg="black", font=("Consolas", 14))
+input_entry.pack(side="left", fill="both", expand=True)
+
+# Bind events after both widgets are created
+input_entry.bind("<KeyRelease>", on_text_change)
+
+# LINE NUMBER UPDATE FUNCTION
+def update_line_numbers(event=None):
+    lines = input_entry.get("1.0", "end-1c").split("\n")
+    line_numbers.config(state=tk.NORMAL)
+    line_numbers.delete("1.0", tk.END)
+    line_numbers.insert("1.0", "\n".join(str(i) for i in range(1, len(lines) + 1)))
+    line_numbers.config(state=tk.DISABLED)
+
+input_entry.bind("<KeyRelease>", lambda e: [process_input(e), update_line_numbers(e)])
  
-input_entry = tk.Text(input_frame, bg="white", fg="black", font=("Consolas", 14))
-input_entry.pack(fill="both", expand=True)
-input_entry.bind("<KeyRelease>", process_input)
  
- 
-# --- OUTPUT BOX (LEXICAL ERROR DISPLAY) ---
-output_frame = tk.Frame(root, bg="#004080", bd=2)
-output_frame.place(relx=0.02, rely=0.75, relwidth=0.6, relheight=0.2)
- 
-output_label = tk.Label(output_frame, text="Output Lexical Error", bg="#004080",
-                        fg="white", font=("Arial", 12, "bold"))
-output_label.pack(side="top", fill="x")
- 
-output_text = tk.Text(output_frame, bg="black", fg="white", font=("Consolas", 12),
+# --- OUTPUT SECTION WITH NOTEBOOK ---
+output_notebook_frame = tk.Frame(root, bg="#004080", bd=2)
+output_notebook_frame.place(relx=0.02, rely=0.75, relwidth=0.6, relheight=0.2)
+
+# Create notebook
+output_notebook = ttk.Notebook(output_notebook_frame)
+output_notebook.pack(fill="both", expand=True)
+
+# Create frames for each tab
+lexical_tab = tk.Frame(output_notebook, bg="#004080")
+syntax_tab = tk.Frame(output_notebook, bg="#004080")
+semantic_tab = tk.Frame(output_notebook, bg="#004080")
+
+# Add frames to notebook
+output_notebook.add(lexical_tab, text="Lexical Analysis")
+output_notebook.add(syntax_tab, text="Syntax Analysis")
+output_notebook.add(semantic_tab, text="Semantic Analysis")
+
+# Lexical Error Output
+output_text = tk.Text(lexical_tab, bg="black", fg="white", font=("Consolas", 12),
                       state="normal")
 output_text.pack(fill="both", expand=True)
-# Block user input
-output_text.bind("<Key>", lambda e: "break") ##prevents user input
-output_text.bind("<Button-1>", lambda e: "break") ##prevents clicking to the box
- 
+output_text.bind("<Key>", lambda e: "break")
+output_text.bind("<Button-1>", lambda e: "break")
+
+# Syntax Error Output
+syntax_output_text = tk.Text(syntax_tab, bg="black", fg="white", font=("Consolas", 12),
+                      state="normal")
+syntax_output_text.pack(fill="both", expand=True)
+syntax_output_text.bind("<Key>", lambda e: "break")
+syntax_output_text.bind("<Button-1>", lambda e: "break")
+
+# Semantic Error Output
+semantic_output_text = tk.Text(semantic_tab, bg="black", fg="white", font=("Consolas", 12),
+                      state="normal")
+semantic_output_text.pack(fill="both", expand=True)
+semantic_output_text.bind("<Key>", lambda e: "break")
+semantic_output_text.bind("<Button-1>", lambda e: "break")
+
 # --- TOKEN HEADER AND BOX ---
 token_table_frame = tk.Frame(root, bg="#004080", bd=2)
-token_table_frame.place(relx=0.81, rely=0.15, relwidth=0.18, relheight=0.6)
- 
+token_table_frame.place(relx=0.81, rely=0.15, relwidth=0.18, relheight=0.8)
+
+# Add scrollbar for token output
+token_scrollbar = tk.Scrollbar(token_table_frame)
+token_scrollbar.pack(side="right", fill="y")
+
 # Token Label
 token_label = tk.Label(token_table_frame, text="Token", bg="#004080", fg="white",
                        font=("Arial", 12, "bold"))
 token_label.pack(side="top", fill="x")
- 
-# Token Output Box
-token_output = tk.Text(token_table_frame, bg="black", fg="white", font=("Consolas", 12), wrap="none")
-token_output.place(relx=0.81, rely=0.15, relwidth=0.15, height=40)
+
+# Token Output Box with scrollbar
+token_output = tk.Text(token_table_frame, bg="black", fg="white", 
+                      font=("Consolas", 12), wrap="none",
+                      yscrollcommand=token_scrollbar.set)
 token_output.pack(fill="both", expand=True)
-# Block user input
-token_output.bind("<Key>", lambda e: "break") ##prevents user input
-token_output.bind("<Button-1>", lambda e: "break") ##prevents clicking to the box
- 
+token_scrollbar.config(command=token_output.yview)
+
 # --- LEXEME HEADER AND BOX ---
 lexeme_table_frame = tk.Frame(root, bg="#004080", bd=2)
-lexeme_table_frame.place(relx=0.63, rely=0.15, relwidth=0.18, relheight=0.6)
- 
+lexeme_table_frame.place(relx=0.63, rely=0.15, relwidth=0.18, relheight=0.8)
+
+# Add scrollbar for lexeme output
+lexeme_scrollbar = tk.Scrollbar(lexeme_table_frame)
+lexeme_scrollbar.pack(side="right", fill="y")
+
 # Lexeme Label
 lexeme_label = tk.Label(lexeme_table_frame, text="Lexeme", bg="#004080", fg="white",
                         font=("Arial", 12, "bold"))
 lexeme_label.pack(side="top", fill="x")
- 
-# Lexeme Output Box
-lexeme_output = tk.Text(lexeme_table_frame, bg="black", fg="white", font=("Consolas", 12), wrap="none")
-lexeme_output.place(relx=0.63, rely=0.15, relwidth=0.15, height=40)
+
+# Lexeme Output Box with scrollbar
+lexeme_output = tk.Text(lexeme_table_frame, bg="black", fg="white", 
+                       font=("Consolas", 12), wrap="none",
+                       yscrollcommand=lexeme_scrollbar.set)
 lexeme_output.pack(fill="both", expand=True)
-# Block user input
-lexeme_output.bind("<Key>", lambda e: "break") ##prevents user input
-lexeme_output.bind("<Button-1>", lambda e: "break") ##prevents clicking to the box
- 
-# Run the application
+lexeme_scrollbar.config(command=lexeme_output.yview)
+
+# Function to sync scrolling
+def sync_scroll(*args):
+    # Sync both text widgets
+    lexeme_output.yview_moveto(args[0])
+    token_output.yview_moveto(args[0])
+
+# Configure scrollbars to use sync_scroll
+lexeme_scrollbar.config(command=sync_scroll)
+token_scrollbar.config(command=sync_scroll)
+
+# Bind mousewheel events
+def on_mousewheel(event):
+    lexeme_output.yview_scroll(int(-1*(event.delta/120)), "units")
+    token_output.yview_scroll(int(-1*(event.delta/120)), "units")
+    return "break"
+
+# Bind mousewheel to both text widgets
+lexeme_output.bind("<MouseWheel>", on_mousewheel)
+token_output.bind("<MouseWheel>", on_mousewheel)
+
+# Keep existing input prevention bindings
+lexeme_output.bind("<Key>", lambda e: "break")
+lexeme_output.bind("<Button-1>", lambda e: "break")
+token_output.bind("<Key>", lambda e: "break")
+token_output.bind("<Button-1>", lambda e: "break")
+
+#lexical analysis button
+lexical_button = tk.Button(root, 
+    text="Lexical Analyzer",
+    command=run_lexical_analysis,
+    bg="#004080",  # Dark blue background
+    fg="white",    # White text
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10,
+    relief=tk.RAISED,
+    bd=3)
+lexical_button.place(relx=0.02, rely=0.08, relwidth=0.15, relheight=0.05)
+
+#syntax analysis button
+syntax_button = tk.Button(root, 
+    text="Syntax Analyzer",
+    command=run_syntax_analysis,
+    bg="#004080",  # Dark blue background
+    fg="white",    # White text
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10,
+    relief=tk.RAISED,
+    bd=3)
+syntax_button.place(relx=0.18, rely=0.08, relwidth=0.15, relheight=0.05)
+
+#semantic analysis button
+semantic_button = tk.Button(root, 
+    text="Semantic Analyzer",
+    command=run_semantic_analysis,
+    bg="#004080",  # Dark blue background
+    fg="white",    # White text
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10,
+    relief=tk.RAISED,
+    bd=3)
+semantic_button.place(relx=0.34, rely=0.08, relwidth=0.15, relheight=0.05)
+
+def open_file():
+    from tkinter import filedialog
+    
+    file_path = filedialog.askopenfilename(
+        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+    )
+    if file_path:
+        try:
+            with open(file_path, 'r') as file:
+                # clear
+                input_entry.delete("1.0", tk.END)
+                
+                # read and insert
+                content = file.read()
+                input_entry.insert("1.0", content)
+                
+                # update line numbers
+                update_line_numbers()
+                
+                # clear output boxes
+                lexeme_output.delete("1.0", tk.END)
+                token_output.delete("1.0", tk.END)
+                output_text.delete("1.0", tk.END)
+                
+                # show success
+                output_text.insert(tk.END, f"File loaded successfully: {file_path}\n")
+        except Exception as e:
+            output_text.insert(tk.END, f"Error opening file: {str(e)}\n")
+
+# file open button
+open_button = tk.Button(root, 
+    text="Open File",
+    command=open_file,
+    bg="#004080",  # Dark blue bg
+    fg="white",    # White text
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10,
+    relief=tk.RAISED,
+    bd=3)
+open_button.place(relx=0.64, rely=0.08, relwidth=0.15, relheight=0.05)
+
+# file save button
+save_button = tk.Button(root, 
+    text="Save File",
+    command=save_file,
+    bg="#004080",  # Dark blue bg
+    fg="white",    # White text
+    font=("Arial", 12, "bold"),
+    padx=20,
+    pady=10,
+    relief=tk.RAISED,
+    bd=3)
+save_button.place(relx=0.82, rely=0.08, relwidth=0.15, relheight=0.05)
+
+# run app
 root.mainloop()
