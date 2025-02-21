@@ -18,15 +18,13 @@ class SyntaxAnalyzer:
         self.match_and_advance("Destroy", "program end")
 
     def global_declaration(self):
-        # debug test
+        """Parses global declarations"""
         self.debug_tokens()
         if (self.peek_next_token() == "Link" and 
             self.current_index + 2 < len(self.tokens) and 
             self.tokens[self.current_index + 1] == "Pane" and 
             self.tokens[self.current_index + 2] == "("):
-            return
-        
-        """Parses global declarations"""
+            return  # Exit to let link_pane() handle it
         while self.peek_next_token() and self.peek_next_token() in ["Link", "Bubble", "Piece", "Flip", "Const", "Set"]:
             # Check if it's the main function "Link Pane()"
             if (self.peek_next_token() == "Link" and 
@@ -42,14 +40,6 @@ class SyntaxAnalyzer:
                 self.const_declaration()
             elif token == "Set":
                 self.struct_declaration()
-
-    def debug_tokens(self):
-        """Print current token context for debugging"""
-        print(f"Current index: {self.current_index}, Line: {self.current_line}")
-        print(f"Current token: {self.get_current_token()}")
-        print(f"Next token: {self.peek_next_token()}")
-        print(f"Two ahead: {self.peek_two_tokens_ahead()}")
-        print(f"Tokens remaining: {self.tokens[self.current_index:]}")
 
     def subs_functions(self):
         """Parses zero or more sub function declarations"""
@@ -153,13 +143,13 @@ class SyntaxAnalyzer:
         """Parses variable declarations"""
         self.data_type()  # Handles "Link", "Bubble", etc.
         if self.peek_next_token() == "Pane" and self.peek_two_tokens_ahead() == "(":
-                # If "Pane" and "(" follow, this is not a variable declaration but the main function
-                raise SyntaxError(f"Line {self.current_line}: 'Link Pane()' should not appear in variable declarations")
+            # If "Pane" and "(" follow, this is not a variable declaration but the main function
+            raise SyntaxError(f"Line {self.current_line}: 'Link Pane()' should not appear in variable declarations")
         self.match_and_advance("Identifier", "variable name")
         if self.peek_next_token() == "=":
             self.match_and_advance("=", "variable assignment")
             self.expression()
-            self.match_and_advance(";", "variable declaration end")
+        self.match_and_advance(";", "variable declaration end")
 
     def data_type(self):
         """Parses data types"""
@@ -178,11 +168,20 @@ class SyntaxAnalyzer:
         self.match_and_advance(";", "input statement end")
 
     def display_statement(self):
-        """Parses display statement"""
+        """Parses display statement with format string and optional arguments"""
         self.match_and_advance("Display", "display statement")
-        self.match_and_advance("(", "display params open")
-        self.expression()
-        self.match_and_advance(")", "display params close")
+        self.match_and_advance('"', "display format open")  # Expect opening quote for format string
+        format_string = self.get_current_token()  # Get the format string (Piecelit)
+        if format_string not in ["Piecelit", "Linklit", "Bubblelit", "Fliplit"]:
+            raise SyntaxError(f"Line {self.current_line}: Expected format string literal, found '{format_string}'")
+        self.advance()  # Move past the format string
+        self.match_and_advance('"', "display format close")  # Expect closing quote
+        
+        # Check for optional arguments after a comma
+        if self.peek_next_token() == ",":
+            self.match_and_advance(",", "argument separator")
+            self.expression()  # Parse the argument (e.g., identifier like 'number')
+        
         self.match_and_advance(";", "display statement end")
 
     def if_statement(self):
@@ -388,6 +387,14 @@ class SyntaxAnalyzer:
         if next_index < len(self.tokens):
             return self.tokens[next_index]
         return None
+
+    def debug_tokens(self):
+        """Print current token context for debugging"""
+        print(f"Current index: {self.current_index}, Line: {self.current_line}")
+        print(f"Current token: {self.get_current_token()}")
+        print(f"Next token: {self.peek_next_token()}")
+        print(f"Two ahead: {self.peek_two_tokens_ahead()}")
+        print(f"Tokens remaining: {self.tokens[self.current_index:]}")
 
     def advance(self):
         """Advances to next token"""
