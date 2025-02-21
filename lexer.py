@@ -23,9 +23,18 @@ def run_syntax_analysis():
         syntax_output_text.insert(tk.END, f"Syntax Error: {str(e)}\n")
 
 def run_semantic_analysis():
-    process_input(analyze=True)
-    semantic_output_text.delete("1.0", tk.END)
-    semantic_output_text.insert(tk.END, "Semantic analysis results...\n")
+    tokens = token_output.get("1.0", tk.END).splitlines()
+    input_text = input_entry.get("1.0", tk.END)
+    lines = input_text.splitlines()
+    
+    analyzer = SyntaxAnalyzer(tokens, lines)
+    try:
+        result = analyzer.analyze()
+        semantic_output_text.delete("1.0", tk.END)
+        semantic_output_text.insert(tk.END, result + "\n")
+    except SyntaxError as e:
+        semantic_output_text.delete("1.0", tk.END)
+        semantic_output_text.insert(tk.END, f"Syntax Error: {str(e)}\n")
 
 def open_file():
     
@@ -719,7 +728,7 @@ def process_input(event=None, analyze=False):
 
             elif state == 54: #Final state for Display
                 if char == " ":
-                    state = 0
+                    state = 175
                     word = ""
                     target_word = "Display"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
@@ -732,6 +741,8 @@ def process_input(event=None, analyze=False):
                     target_word = "Display"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
+                    lexeme_output.insert(tk.END, '"\n')  # Add opening quote token
+                    token_output.insert(tk.END, '"\n')
                 else:
                     output_text.insert(tk.END, f'Line {line_number + 1}: Lexical error at position {index}: should be <space> or " \n')
                     state = 0
@@ -5237,11 +5248,14 @@ def process_input(event=None, analyze=False):
                                      
                     word += char
                 elif char == '"':
-                    
                     state = 169
-                    word += char
+                    lexeme_output.insert(tk.END, f"{word}\n")  # Output the string content
+                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, '"\n')  # Add closing quote token
+                    token_output.insert(tk.END, '"\n')
+                    word = ""
                 else:
-                    state == 168
+                    state = 168
             
             elif state == 555: #[first input] [PIECE LITERAL]
                 if char == "#":
@@ -5317,6 +5331,9 @@ def process_input(event=None, analyze=False):
                     token_output.insert(tk.END, f"Piecelit\n")
                     state = 174 #state of ;
                     word = char
+                elif char == ",":
+                    state = 173 #state of ,
+                    word = ""
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: Invalid character in identifier\n")
                     state = 0
@@ -5407,6 +5424,17 @@ def process_input(event=None, analyze=False):
                     word = char
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'newline' or 'space'\n")
+                    state = 0
+                    word = ""
+
+            elif state == 175:
+                if char == '"':
+                    state = 167
+                    lexeme_output.insert(tk.END, '"\n')  # Output opening quote
+                    token_output.insert(tk.END, '"\n')
+                    word = ""
+                else:
+                    output_text.insert(tk.END, f'Line {line_number + 1}: Lexical error at position {index}: Expected " after Display <space>\n')
                     state = 0
                     word = ""
 
@@ -5668,6 +5696,7 @@ def update_line_numbers(event=None):
     line_numbers.config(state=tk.DISABLED)
 
 def on_text_change(event=None):
+    """Handle text changes including copy-paste"""
     update_line_numbers()
     process_input(event)
 
@@ -5675,28 +5704,87 @@ def on_text_change(event=None):
 inner_frame = tk.Frame(input_frame)
 inner_frame.pack(fill="both", expand=True)
 
-# LINE NUMBERS TEXT WIDGET
-line_numbers = tk.Text(inner_frame, width=4, bg="lightgray", fg="black", 
-                      font=("Consolas", 14))
+# Modify the inner frame setup and line number synchronization
+def sync_input_scroll(*args):
+    """Synchronize input text and line numbers scrolling"""
+    # Sync line numbers with input text
+    if len(args) > 0:
+        # Store current positions
+        line_pos = line_numbers.yview()
+        input_pos = input_entry.yview()
+        
+        # Update both widgets
+        line_numbers.yview_moveto(args[0])
+        input_entry.yview_moveto(args[0])
+        
+        # Verify positions are synced
+        if line_numbers.yview() != input_entry.yview():
+            # Re-sync if needed
+            line_numbers.yview_moveto(input_entry.yview()[0])
+
+# Add scrollbar for input text
+input_scrollbar = tk.Scrollbar(inner_frame)
+input_scrollbar.pack(side="right", fill="y")
+
+# Modify line numbers widget
+line_numbers = tk.Text(inner_frame, width=4, bg="lightgray", fg="black",
+                      font=("Consolas", 14), yscrollcommand=sync_input_scroll)
 line_numbers.pack(side="left", fill="y")
 line_numbers.config(state=tk.DISABLED)
 
-# MAIN INPUT TEXT WIDGET
-input_entry = tk.Text(inner_frame, bg="white", fg="black", font=("Consolas", 14))
+# Modify input entry widget
+input_entry = tk.Text(inner_frame, bg="white", fg="black", font=("Consolas", 14),
+                     yscrollcommand=sync_input_scroll)
 input_entry.pack(side="left", fill="both", expand=True)
+
+# Configure scrollbar
+input_scrollbar.config(command=sync_input_scroll)
+
+# Update mousewheel handling
+def on_input_mousewheel(event):
+     # Store positions before scroll
+    current_pos = input_entry.yview()[0]
+    
+    # Scroll both widgets
+    line_numbers.yview_scroll(int(-1*(event.delta/120)), "units")
+    input_entry.yview_scroll(int(-1*(event.delta/120)), "units")
+    
+    # Ensure synchronization
+    if line_numbers.yview() != input_entry.yview():
+        line_numbers.yview_moveto(input_entry.yview()[0])
+    
+    return "break"
+
+# Bind mousewheel to both text widgets
+line_numbers.bind("<MouseWheel>", on_input_mousewheel)
+input_entry.bind("<MouseWheel>", on_input_mousewheel)
 
 # Bind events after both widgets are created
 input_entry.bind("<KeyRelease>", on_text_change)
 
-# LINE NUMBER UPDATE FUNCTION
+# Update the line numbers update function
 def update_line_numbers(event=None):
-    lines = input_entry.get("1.0", "end-1c").split("\n")
+    """Update line numbers with proper synchronization"""
+    # Get all lines including empty ones at the end
+    content = input_entry.get("1.0", "end-1c")
+    lines = content.split("\n")
+    total_lines = len(lines)
+
+    # Store current view position
+    current_pos = input_entry.yview()[0]
+    
+    # Update line numbers
     line_numbers.config(state=tk.NORMAL)
     line_numbers.delete("1.0", tk.END)
-    line_numbers.insert("1.0", "\n".join(str(i) for i in range(1, len(lines) + 1)))
+    line_numbers.insert("1.0", "\n".join(str(i) for i in range(1, total_lines + 1)))
     line_numbers.config(state=tk.DISABLED)
+    
+    # Restore view position
+    line_numbers.yview_moveto(current_pos)
+    input_entry.yview_moveto(current_pos)
 
-input_entry.bind("<KeyRelease>", lambda e: [process_input(e), update_line_numbers(e)])
+input_entry.bind("<<Modified>>", on_text_change)  # Catches all text modifications
+input_entry.bind("<KeyRelease>", on_text_change)  # Catches keyboard input
  
  
 # --- OUTPUT SECTION WITH NOTEBOOK ---
