@@ -30,7 +30,7 @@ def run_lexical_analysis():
     
     # Show popup if no errors were found
     if not has_lexical_error[0]:
-        output_text.insert(tk.END, "No Lexical Error Found")
+        output_text.insert(tk.END, "No Lexical Error")
 
 def run_syntax_analysis():
     # Get tokens and input text from the GUI
