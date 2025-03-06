@@ -1,11 +1,37 @@
+from re import S
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from syntax_analyzer import SyntaxAnalyzer
 
 def run_lexical_analysis():
-    process_input(analyze=True)
+    has_lexical_error = [False]  # Using list to modify it within nested function
+    # Its either this or a manually checking of the output_text content for "Lexical Error" which adds like 100+ more lines of code
+    # A wrapper for output_text.insert to track errors
+    def wrapped_output_text_insert(*args, **kwargs):
+        has_lexical_error[0] = True
+        original_insert(*args, **kwargs)
+    
+    # Clear previous outputs
     syntax_output_text.delete("1.0", tk.END)
+    lexeme_output.delete("1.0", tk.END)
+    token_output.delete("1.0", tk.END)
+    output_text.delete("1.0", tk.END)
+    
+    # Temporarily override output_text.insert to track errors
+    original_insert = output_text.insert
+    output_text.insert = wrapped_output_text_insert
+    
+    # Run the existing process_input function
+    process_input(analyze=True)
+    
+    # Restore original insert method
+    output_text.insert = original_insert
+    
+    # Show popup if no errors were found
+    if not has_lexical_error[0]:
+        output_text.insert(tk.END, "No Lexical Error Found")
+
 def run_syntax_analysis():
     # Get tokens and input text from the GUI
     tokens = token_output.get("1.0", tk.END).splitlines()
@@ -200,10 +226,12 @@ def process_input(event=None, analyze=False):
                     word += char
                 elif char == "." or char.isdigit():
                     state = 156
-                    word += char
+                    word = char
                 elif char == '"' or char.isdigit(): ## \" to treat " literally.
+                    lexeme_output.insert(tk.END, '"\n')
+                    token_output.insert(tk.END, '"\n')
                     state = 167
-                    word += char
+                    word = ""
                 elif char == "#": # (comment)
                     state = 555
                     word += char
@@ -1722,6 +1750,12 @@ def process_input(event=None, analyze=False):
                     target_word = "+" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
+                if char == "+":  # ++ operator for looping
+                    word += char
+                    lexeme_output.insert(tk.END, "++\n")
+                    token_output.insert(tk.END, "++\n")
+                    state = 0
+                    word = ""
                 elif char == "=": #For Snapif
                     state = 119
                     word += char
@@ -1751,7 +1785,7 @@ def process_input(event=None, analyze=False):
             elif state == 119: #Final state for '+='
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "+=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1789,7 +1823,7 @@ def process_input(event=None, analyze=False):
             elif state == 120: #Final state for '-'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "-" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1801,6 +1835,12 @@ def process_input(event=None, analyze=False):
                     target_word = "-"  
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
+                if char == "-":  # -- operator for looping
+                    word += char
+                    lexeme_output.insert(tk.END, "--\n")
+                    token_output.insert(tk.END, "--\n")
+                    state = 0
+                    word = ""
                 elif char == "=": #For Snapif
                     state = 121
                     word += char
@@ -1830,7 +1870,7 @@ def process_input(event=None, analyze=False):
             elif state == 121: #Final state for '-='
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "-=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1868,7 +1908,7 @@ def process_input(event=None, analyze=False):
             elif state == 122: #Final state for '*'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "*" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1909,7 +1949,7 @@ def process_input(event=None, analyze=False):
             elif state == 123: #Final state for '*='
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "*=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1947,7 +1987,7 @@ def process_input(event=None, analyze=False):
             elif state == 124: #Final state for '/'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "/" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -1988,7 +2028,7 @@ def process_input(event=None, analyze=False):
             elif state == 125: #Final state for '/='
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "/=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2026,7 +2066,7 @@ def process_input(event=None, analyze=False):
             elif state == 126: #Final state for '%'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "%" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2067,7 +2107,7 @@ def process_input(event=None, analyze=False):
             elif state == 127: #Final state for '%='
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "%=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2105,7 +2145,7 @@ def process_input(event=None, analyze=False):
             elif state == 128: #Final state for '!'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2149,7 +2189,7 @@ def process_input(event=None, analyze=False):
             elif state == 129: #Final state for '!!'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "!!" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2187,7 +2227,7 @@ def process_input(event=None, analyze=False):
             elif state == 130: #Final state for '!='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "!=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2219,7 +2259,7 @@ def process_input(event=None, analyze=False):
             elif state == 131: #Final state for '<'
                 if char == " ":
                     state = 0
-                    word = char
+                    word = ""
                     target_word = "<" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2254,7 +2294,7 @@ def process_input(event=None, analyze=False):
             elif state == 132: #Final state for '<='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "<=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2286,7 +2326,7 @@ def process_input(event=None, analyze=False):
             elif state == 133: #Final state for '>'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = "" # removed += char, causing <space>123 issues.
                     target_word = ">" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2321,7 +2361,7 @@ def process_input(event=None, analyze=False):
             elif state == 134: #Final state for '>='
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = ">=" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2353,7 +2393,7 @@ def process_input(event=None, analyze=False):
             elif state == 135: #Final state for '&'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2394,7 +2434,7 @@ def process_input(event=None, analyze=False):
             elif state == 136: #Final state for '&&'
                 if char == " ":
                     state = 0
-                    word =""
+                    word = ""
                     target_word = "&&" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2432,7 +2472,7 @@ def process_input(event=None, analyze=False):
             elif state == 137: #Final state for '|'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "|" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2473,7 +2513,7 @@ def process_input(event=None, analyze=False):
             elif state == 138: #Final state for '||'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = "||" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2592,6 +2632,11 @@ def process_input(event=None, analyze=False):
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
                     word = char
+                elif char == ";":
+                     state = 145
+                     target_word = "}"
+                     lexeme_output.insert(tk.END, f"{target_word}\n")  # Output } before moving to ;
+                     token_output.insert(tk.END, f"{target_word}\n")
                 else:
                     output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be 'open curly bracket' or 'alphanum' or 'space' or 'newline '\n")
                     state = 0
@@ -2614,6 +2659,34 @@ def process_input(event=None, analyze=False):
                 elif char == ")":
                     state = 142
                     target_word = "(" 
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    word = char
+                elif char == "L":  # Start of "Link"
+                    state = 65
+                    word = ""
+                    target_word = "("
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    word = char
+                elif char == "B":  # Start of "Bubble" or others
+                    state = 1
+                    word = ""
+                    target_word = "("
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    word = char
+                elif char == "P":  # Start of "Piece"
+                    state = 69
+                    word = ""
+                    target_word = "("
+                    lexeme_output.insert(tk.END, f"{target_word}\n")
+                    token_output.insert(tk.END, f"{target_word}\n")
+                    word = char
+                elif char == "F":  # Start of "Flip"
+                    state = 55
+                    word = ""
+                    target_word = "("
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
                     word = char
@@ -2789,7 +2862,7 @@ def process_input(event=None, analyze=False):
             elif state == 145: #Final state for ';'
                 if char == " ":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = ";" 
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -2797,7 +2870,7 @@ def process_input(event=None, analyze=False):
                     token_output.insert(tk.END, "Space\n")
                 elif char == "\n":
                     state = 0
-                    word += char
+                    word = ""
                     target_word = ";"
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
@@ -5243,28 +5316,31 @@ def process_input(event=None, analyze=False):
 
             
 
-            elif state == 167: #[first input] [PIECE LITERAL]
-                if 32 <= ord(char) <= 33 or 35 <= ord(char) <= 126:
-                                     
-                    word += char
+            elif state == 167: #[first input] [PIECE LITERAL] [accumulate PIECE LITERAL including quotes]
+                if 32 <= ord(char) <= 33 or 35 <= ord(char) <= 126:    # Valid ASCII characters for string
+                    word += char # Add character to the string
                 elif char == '"':
-                    state = 169
-                    lexeme_output.insert(tk.END, f"{word}\n")  # Output the string content
-                    token_output.insert(tk.END, f"Piecelit\n")
-                    lexeme_output.insert(tk.END, '"\n')  # Add closing quote token
+                    if word:  # If we have content, output it
+                        lexeme_output.insert(tk.END, f"{word}\n")
+                        token_output.insert(tk.END, "Piecelit\n")
+                    lexeme_output.insert(tk.END, '"\n')  # Output closing quote separately
                     token_output.insert(tk.END, '"\n')
-                    word = ""
+                    state = 169
+                    word += char
+
                 else:
-                    state = 168
-            
+                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: Invalid character in string literal\n")
+                    state = 0
+                    word = ""
+
             elif state == 555: #[first input] [PIECE LITERAL]
                 if char == "#":
-                    word += char
-                    lexeme_output.insert(tk.END, f"{word}")   
+                    word = ""
                     state = 556
                 else:
-                    state == 0
-                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be ""#"" \n")
+                    state == 0 # Error: single # is invalid
+                    output_text.insert(tk.END, f"Line {line_number + 1}: Lexical error at position {index}: should be ""#"" after '#' \n")
+                    word = ""
 
             elif state == 556: #[first input] [PIECE LITERAL]
                 if 32 <= ord(char) <= 34 or 36 <= ord(char) <= 126:
@@ -5292,43 +5368,45 @@ def process_input(event=None, analyze=False):
 
             elif state == 169: #[piece_delim] [PIECE LITERAL]
                 if char == " ":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                     state = 0
                     word = ""
                 elif char == ";":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
-                    state = 145 #state of ;
-                    word = char
+                    lexeme_output.insert(tk.END, ";\n")
+                    token_output.insert(tk.END, ";\n")
+                    state = 0 #state of ;
+                    word = ""
+                    index += 1 # Explicitly advance past the semicolon
+                    continue # Skip to next iteration to avoid reprocessing ";"
                 elif char == "{":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, "{\n")
+                    token_output.insert(tk.END, "{\n")
                     state = 139 #state of {
                     word = ""
                 elif char == "}":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, "}\n")
+                    token_output.insert(tk.END, "}\n")
                     state = 140 #state of }
                     word = ""
                 elif char == ")":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, ")\n")
+                    token_output.insert(tk.END, ")\n")
                     state = 142 #state of )
                     word = ""
                 elif char == "~":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, "~\n")
+                    token_output.insert(tk.END, "~\n")
                     state = 146 #state of ~
                     word = ""
                 elif char == "=":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, "=\n")
+                    token_output.insert(tk.END, "=\n")
                     state = 116 #state of =
                     word = ""
                 elif char == ":":
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, f"Piecelit\n")
+                    lexeme_output.insert(tk.END, ":\n")
+                    token_output.insert(tk.END, ":\n")
                     state = 174 #state of ;
                     word = char
                 elif char == ",":
@@ -5372,8 +5450,8 @@ def process_input(event=None, analyze=False):
             elif state == 173: #Final state for ','
                 if char == " ":
                     state = 0
-                    word += char
                     target_word = "," 
+                    word = ""
                     lexeme_output.insert(tk.END, f"{target_word}\n")
                     token_output.insert(tk.END, f"{target_word}\n")
                     lexeme_output.insert(tk.END, "Space\n")
@@ -5433,6 +5511,14 @@ def process_input(event=None, analyze=False):
                     lexeme_output.insert(tk.END, '"\n')  # Output opening quote
                     token_output.insert(tk.END, '"\n')
                     word = ""
+                elif char == " ":
+                    state = 0
+                    word = ""
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                elif char.islower() or char.isupper():  # Allow identifiers
+                    state = 20
+                    word = char  # Start building identifier
                 else:
                     output_text.insert(tk.END, f'Line {line_number + 1}: Lexical error at position {index}: Expected " after Display <space>\n')
                     state = 0
@@ -5588,8 +5674,10 @@ def process_input(event=None, analyze=False):
                     if word and len(word.strip()) > 0 and not word.isspace():  # Only output if we have a word
                         lexeme_output.insert(tk.END, f"{word}\n")
                         token_output.insert(tk.END, "Identifier\n")
-                        word = ""
-                        state = 0
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
+                    word = ""
+                    state = 0
                 elif char == ";":
                     lexeme_output.insert(tk.END, f"{word}\n")
                     token_output.insert(tk.END, "Identifier\n")
@@ -5610,6 +5698,16 @@ def process_input(event=None, analyze=False):
                     token_output.insert(tk.END, "Identifier\n")
                     state = 142 #state of )
                     word += char
+                elif char == "+":
+                    state = 118  # Transition to + state to check for ++ (looping)
+                    lexeme_output.insert(tk.END, f"{word}\n")
+                    token_output.insert(tk.END, "Identifier\n")
+                    word = char
+                elif char == "-":
+                    state = 120 # Transition to - state to check for -- (looping)
+                    lexeme_output.insert(tk.END, f"{word}\n")
+                    token_output.insert(tk.END, "Identifier\n")
+                    word = char
                 elif char == "~":
                     lexeme_output.insert(tk.END, f"{word}\n")
                     token_output.insert(tk.END, "Identifier\n")
@@ -5640,8 +5738,8 @@ def process_input(event=None, analyze=False):
                         state = 133 #state of >
                         word = ""    
                 elif char == " ": 
-                    lexeme_output.insert(tk.END, f"{word}\n")
-                    token_output.insert(tk.END, "Identifier\n")
+                    lexeme_output.insert(tk.END, "Space\n")
+                    token_output.insert(tk.END, "Space\n")
                     state = 0 
                     word = ""
                 elif char == ",":
