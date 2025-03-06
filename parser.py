@@ -1,7 +1,7 @@
 class SyntaxAnalyzer:
     def __init__(self, tokens, lines):
-        self.tokens = [token for token in tokens if token.strip() != "Space"]
-        self.lines = lines  # Store original input lines for line number tracking
+        self.tokens = [token for token in tokens if token.strip() != "Space"]  # Filter out "Space" tokens
+        self.lines = lines  # Original input lines for line tracking
         self.current_index = 0
         self.current_line = 1  # Start at line 1
 
@@ -18,28 +18,28 @@ class SyntaxAnalyzer:
         self.match_and_advance("Destroy", "program end")
 
     def global_declaration(self):
-        """Parses global declarations"""
+        """Parses global declarations, ensuring Link Pane() is not mistaken for a variable"""
         self.debug_tokens()
-        if (self.peek_next_token() == "Link" and 
-            self.current_index + 2 < len(self.tokens) and 
-            self.tokens[self.current_index + 1] == "Pane" and 
-            self.tokens[self.current_index + 2] == "("):
-            return  # Exit to let link_pane() handle it
         while self.peek_next_token() and self.peek_next_token() in ["Link", "Bubble", "Piece", "Flip", "Const", "Set"]:
-            # Check if it's the main function "Link Pane()"
+            # Check for Link Pane() before proceeding to variable or array parsing
             if (self.peek_next_token() == "Link" and 
-                self.current_index + 2 < len(self.tokens) and 
+                self.current_index + 1 < len(self.tokens) and 
                 self.tokens[self.current_index + 1] == "Pane" and 
+                self.current_index + 2 < len(self.tokens) and 
                 self.tokens[self.current_index + 2] == "("):
-                return  # Exit to let link_pane() handle it
+                return  # Exit early to let link_pane() handle the main function
             
             token = self.peek_next_token()
             if token in ["Link", "Bubble", "Piece", "Flip"]:
-                self.variable_declaration()
+                if self.peek_two_tokens_ahead() == "[":
+                    self.array_declaration()  # Handle array declarations
+                else:
+                    self.variable_declaration()  # Handle variable declarations
             elif token == "Const":
                 self.const_declaration()
             elif token == "Set":
                 self.struct_declaration()
+            self.debug_tokens()  # Debug after each declaration to track progress
 
     def subs_functions(self):
         """Parses zero or more sub function declarations"""
@@ -47,7 +47,7 @@ class SyntaxAnalyzer:
             self.subfunction_declaration()
 
     def subfunction_declaration(self):
-        """Parses a subfunction declaration"""
+        """Parses a subfunction"""
         self.match_and_advance("Subs", "subfunction start")
         self.match_and_advance("Identifier", "subfunction name")
         self.match_and_advance("(", "parameter list open")
@@ -62,11 +62,9 @@ class SyntaxAnalyzer:
         if self.peek_next_token() != "Link":
             raise SyntaxError(f"Line {self.current_line}: Expected 'Link' for main function, found '{self.peek_next_token()}'")
         self.match_and_advance("Link", "main function start")
-        
         if self.peek_next_token() != "Pane":
             raise SyntaxError(f"Line {self.current_line}: Expected 'Pane' after 'Link', found '{self.peek_next_token()}'")
         self.match_and_advance("Pane", "main function name")
-        
         self.match_and_advance("(", "main function params open")
         self.match_and_advance(")", "main function params close")
         self.match_and_advance("{", "main function body open")
@@ -104,16 +102,56 @@ class SyntaxAnalyzer:
             self.variable_declaration()
         self.match_and_advance("}", "struct body close")
 
+    def array_declaration(self):
+        """Parses array declarations"""
+        self.data_type()
+        self.match_and_advance("Identifier", "array name")
+        self.match_and_advance("[", "array size open")
+        self.match_and_advance("Linklit", "array size")
+        self.match_and_advance("]", "array size close")
+        if self.peek_next_token() == "[":
+            self.match_and_advance("[", "second dimension open")
+            self.match_and_advance("Linklit", "second dimension size")
+            self.match_and_advance("]", "second dimension close")
+        if self.peek_next_token() == "=":
+            self.match_and_advance("=", "array initialization")
+            self.match_and_advance("{", "array values open")
+            self.array_init()
+            self.match_and_advance("}", "array values close")
+        self.match_and_advance(";", "array declaration end")
+
+    def array_init(self):
+        """Parses array initialization values"""
+        if self.peek_next_token() == "{":
+            self.match_and_advance("{", "nested array open")
+            self.array_init()
+            self.match_and_advance("}", "nested array close")
+            while self.peek_next_token() == ",":
+                self.match_and_advance(",", "array value separator")
+                self.match_and_advance("{", "nested array open")
+                self.array_init()
+                self.match_and_advance("}", "nested array close")
+        else:
+            self.literal()
+            while self.peek_next_token() == ",":
+                self.match_and_advance(",", "array value separator")
+                self.literal()
+
     def body(self):
         """Parses function body"""
         while self.peek_next_token() and self.peek_next_token() not in ["}", "Rebrick"]:
             self.statements()
+        if self.peek_next_token() == "}":
+            return
 
     def statements(self):
         """Parses statements"""
         token = self.peek_next_token()
         if token in ["Link", "Bubble", "Piece", "Flip"]:
-            self.variable_declaration()
+            if self.peek_two_tokens_ahead() == "[":
+                self.array_declaration()
+            else:
+                self.variable_declaration()
         elif token == "Set":
             self.struct_declaration()
         elif token == "Create":
@@ -140,15 +178,23 @@ class SyntaxAnalyzer:
             raise SyntaxError(f"Line {self.current_line}: Unexpected token '{token}' in statements")
 
     def variable_declaration(self):
-        """Parses variable declarations"""
-        self.data_type()  # Handles "Link", "Bubble", etc.
-        if self.peek_next_token() == "Pane" and self.peek_two_tokens_ahead() == "(":
-            # If "Pane" and "(" follow, this is not a variable declaration but the main function
-            raise SyntaxError(f"Line {self.current_line}: 'Link Pane()' should not appear in variable declarations")
+        """Parses variable declarations, avoiding confusion with Link Pane()"""
+        self.data_type()
+        # Enhanced check to prevent misparsing Link Pane() as a variable
+        if (self.peek_next_token() == "Pane" and 
+            self.current_index + 1 < len(self.tokens) and 
+            self.tokens[self.current_index + 1] == "("):
+            raise SyntaxError(f"Line {self.current_line}: 'Link Pane()' should not appear in variable declarations; expected identifier")
         self.match_and_advance("Identifier", "variable name")
         if self.peek_next_token() == "=":
             self.match_and_advance("=", "variable assignment")
             self.expression()
+        while self.peek_next_token() == ",":
+            self.match_and_advance(",", "variable separator")
+            self.match_and_advance("Identifier", "variable name")
+            if self.peek_next_token() == "=":
+                self.match_and_advance("=", "variable assignment")
+                self.expression()
         self.match_and_advance(";", "variable declaration end")
 
     def data_type(self):
@@ -168,44 +214,61 @@ class SyntaxAnalyzer:
         self.match_and_advance(";", "input statement end")
 
     def display_statement(self):
-        """Parses display statement with format string and optional arguments"""
+        """Parses display statement with adjusted flexibility"""
         self.match_and_advance("Display", "display statement")
-        self.match_and_advance('"', "display format open")  # Expect opening quote for format string
-        format_string = self.get_current_token()  # Get the format string (Piecelit)
-        if format_string not in ["Piecelit", "Linklit", "Bubblelit", "Fliplit"]:
-            raise SyntaxError(f"Line {self.current_line}: Expected format string literal, found '{format_string}'")
-        self.advance()  # Move past the format string
-        self.match_and_advance('"', "display format close")  # Expect closing quote
-        
-        # Check for optional arguments after a comma
+        if self.peek_next_token() == '"':
+            self.match_and_advance('"', "display format open")
+            format_string = self.get_current_token()
+            if format_string not in ["Piecelit", "Linklit", "Bubblelit", "Fliplit"]:
+                raise SyntaxError(f"Line {self.current_line}: Expected format string literal, found '{format_string}'")
+            self.advance()
+            self.match_and_advance('"', "display format close")
+        elif self.peek_next_token().startswith("Identifier"):
+            self.match_and_advance("Identifier", "display variable")
+        else:
+            raise SyntaxError(f"Line {self.current_line}: Expected quoted literal or identifier after 'Display', found '{self.peek_next_token()}'")
         if self.peek_next_token() == ",":
             self.match_and_advance(",", "argument separator")
-            self.expression()  # Parse the argument (e.g., identifier like 'number')
-        
+            self.expression()
         self.match_and_advance(";", "display statement end")
 
     def if_statement(self):
-        """Parses if statement"""
         self.match_and_advance("Ifsnap", "if statement")
-        self.match_and_advance("(", "if condition open")
+        self.match_and_advance("(", "condition open")
         self.condition()
-        self.match_and_advance(")", "if condition close")
-        self.match_and_advance("{", "if body open")
-        self.body()
-        self.match_and_advance("}", "if body close")
+        self.match_and_advance(")", "condition close")
+        
+        # Check if next token is '{'
+        if self.peek_next_token() == "{":
+            self.match_and_advance("{", "if body open")
+            self.body()
+            self.match_and_advance("}", "if body close")
+        else:
+            # Single statement without braces
+            self.statements()  # Parse a single statement
+        
+        # Handle optional Snapif clauses
         while self.peek_next_token() == "Snapif":
             self.match_and_advance("Snapif", "elseif statement")
-            self.match_and_advance("(", "elseif condition open")
+            self.match_and_advance("(", "condition open")
             self.condition()
-            self.match_and_advance(")", "elseif condition close")
-            self.match_and_advance("{", "elseif body open")
-            self.body()
-            self.match_and_advance("}", "elseif body close")
+            self.match_and_advance(")", "condition close")
+            if self.peek_next_token() == "{":
+                self.match_and_advance("{", "elseif body open")
+                self.body()
+                self.match_and_advance("}", "elseif body close")
+            else:
+                self.statements()  # Single statement for Snapif
+        
+        # Handle optional Snap (else) clause
         if self.peek_next_token() == "Snap":
             self.match_and_advance("Snap", "else statement")
-            self.match_and_advance("{", "else body open")
-            self.body()
-            self.match_and_advance("}", "else body close")
+            if self.peek_next_token() == "{":
+                self.match_and_advance("{", "else body open")
+                self.body()
+                self.match_and_advance("}", "else body close")
+            else:
+                self.statements()  # Single statement for Snap
 
     def switch_statement(self):
         """Parses switch statement"""
@@ -214,15 +277,42 @@ class SyntaxAnalyzer:
         self.match_and_advance("Identifier", "switch variable")
         self.match_and_advance(")", "switch expression close")
         self.match_and_advance("{", "switch body open")
+        # Handle multiple Base cases
         while self.peek_next_token() == "Base":
-            self.match_and_advance("Base", "case statement")
-            self.literal()
+            self.match_and_advance("Base", "case start")
+            if self.peek_next_token() in ["Linklit", "Bubblelit", "Piecelit", "Fliplit"]:
+                self.advance()  # Consume the literal for now, change it later for semantic analyzer
             self.match_and_advance(":", "case separator")
-            self.body()
+            # Parse case body (block or single/multiple statements)
+            while self.peek_next_token() not in ["Base", "Def", "}", ""]:
+                if self.peek_next_token() == "{":
+                    self.match_and_advance("{", "case body open")
+                    self.body()
+                    self.match_and_advance("}", "case body close")
+                else:
+                    self.statements()
+                # Handle Broke as a terminator
+                if self.peek_next_token() == "Broke":
+                    self.match_and_advance("Broke", "break statement")
+                    self.match_and_advance(";", "break end")
+                    break  # Exit inner loop after Broke
+        
+        # Handle optional Def case
         if self.peek_next_token() == "Def":
             self.match_and_advance("Def", "default case")
             self.match_and_advance(":", "default separator")
-            self.body()
+            while self.peek_next_token() not in ["}", ""]:
+                if self.peek_next_token() == "{":
+                    self.match_and_advance("{", "default body open")
+                    self.body()
+                    self.match_and_advance("}", "default body close")
+                else:
+                    self.statements()
+                if self.peek_next_token() == "Broke":
+                    self.match_and_advance("Broke", "break statement")
+                    self.match_and_advance(";", "break end")
+                    break
+        
         self.match_and_advance("}", "switch body close")
 
     def loop_statement(self):
@@ -239,14 +329,30 @@ class SyntaxAnalyzer:
         """Parses for loop"""
         self.match_and_advance("Put", "for loop")
         self.match_and_advance("(", "for params open")
-        self.variable_declaration()
-        self.condition()
-        self.match_and_advance(";", "for condition end")
-        self.assignment_statement()
-        self.match_and_advance(")", "for params close")
-        self.match_and_advance("{", "for body open")
-        self.body()
-        self.match_and_advance("}", "for body close")
+        if self.peek_next_token() != ";":
+            if self.peek_next_token() in ["Link", "Bubble", "Piece", "Flip"]:
+                self.variable_declaration()  # Rename to match your method
+            else:
+                self.assignment()
+        self.match_and_advance(";", "init separator")
+        
+        # Condition
+        if self.peek_next_token() != ";":
+            self.condition()
+        self.match_and_advance(";", "condition separator")
+        
+        # Update
+        if self.peek_next_token() != ")":
+            self.update_statement()
+        self.match_and_advance(")", "loop close")
+        
+        # Body
+        if self.peek_next_token() == "{":
+            self.match_and_advance("{", "body open")
+            self.body()
+            self.match_and_advance("}", "body close")
+        else:
+            self.statements()
 
     def while_loop(self):
         """Parses while loop"""
@@ -277,7 +383,15 @@ class SyntaxAnalyzer:
         if assign_op in ["=", "+=", "-=", "*=", "/=", "%="]:
             self.match_and_advance(assign_op, "assignment operator")
             self.expression()
-            self.match_and_advance(";", "assignment end")
+        else:
+            raise SyntaxError(f"Line {self.current_line}: Expected assignment operator, found '{assign_op}'")
+        
+    def assignment(self):
+        self.match_and_advance("Identifier", "assignment variable")
+        assign_op = self.peek_next_token()
+        if assign_op in ["=", "+=", "-=", "*=", "/=", "%="]:
+            self.match_and_advance(assign_op, "assignment operator")
+            self.expression()
         else:
             raise SyntaxError(f"Line {self.current_line}: Expected assignment operator, found '{assign_op}'")
 
@@ -333,6 +447,13 @@ class SyntaxAnalyzer:
             self.match_and_advance(token, "literal")
         else:
             raise SyntaxError(f"Line {self.current_line}: Expected literal, found '{token}'")
+        
+    def update_statement(self):
+        self.match_and_advance("Identifier", "update variable")
+        if self.peek_next_token() in ["++", "--"]:
+            self.match_and_advance(self.peek_next_token(), "increment/decrement")
+        else:
+            self.assignment()
 
     def match_and_advance(self, expected, context):
         """Matches and advances token with line number tracking"""
@@ -350,7 +471,6 @@ class SyntaxAnalyzer:
         """Gets current token and updates line number"""
         if self.current_index < len(self.tokens):
             token = self.tokens[self.current_index]
-            # Approximate line number based on token position
             token_count = 0
             for i, line in enumerate(self.lines, 1):
                 line_tokens = len([t for t in line.split() if t.strip() and t != "Space"])
@@ -360,6 +480,7 @@ class SyntaxAnalyzer:
                     break
             else:
                 self.current_line = len(self.lines)
+            print(f"Token: {token}, Line: {self.current_line}, Index: {self.current_index}")
             return "Identifier" if token.startswith("Identifier") else token
         return None
 
@@ -372,16 +493,6 @@ class SyntaxAnalyzer:
         next_index = self.current_index + 1
         count = 0
         while next_index < len(self.tokens) and count < 1:
-            count += 1
-            next_index += 1
-        if next_index < len(self.tokens):
-            return self.tokens[next_index]
-        return None
-    
-    def peek_three_tokens_ahead(self):
-        next_index = self.current_index + 1
-        count = 0
-        while next_index < len(self.tokens) and count < 2:
             count += 1
             next_index += 1
         if next_index < len(self.tokens):
